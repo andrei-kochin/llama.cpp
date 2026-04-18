@@ -8567,7 +8567,8 @@ static ggml_status ggml_backend_hrx_dispatch_gated_delta_net(
         ggml_backend_hrx_context * context,
         const ggml_tensor * dst,
         const ggml_tensor * state_dst = nullptr,
-        bool beta_sigmoid = false) {
+        bool beta_sigmoid = false,
+        bool preserve_state_tail = true) {
     const ggml_tensor * q = dst->src[0];
     const ggml_tensor * k = dst->src[1];
     const ggml_tensor * v = dst->src[2];
@@ -8743,7 +8744,7 @@ static ggml_status ggml_backend_hrx_dispatch_gated_delta_net(
             HRX_DISPATCH_FLAG_NONE))) {
         return GGML_STATUS_FAILED;
     }
-    if (state_dst) {
+    if (state_dst && preserve_state_tail) {
         const size_t attn_nbytes = static_cast<size_t>(attn_score_elems) * sizeof(float);
         if (!GGML_HRX_CHECK(hrx_stream_copy_buffer(
                 context->stream,
@@ -9055,6 +9056,96 @@ static int ggml_backend_hrx_find_node_index(
     return -1;
 }
 
+static bool ggml_backend_hrx_gated_delta_net_prefix_view(
+        const ggml_tensor * gdn,
+        const ggml_tensor * view,
+        size_t attn_nbytes) {
+    if (!view ||
+        view->view_src != gdn ||
+        view->view_offs > attn_nbytes ||
+        !ggml_is_contiguous(view)) {
+        return false;
+    }
+    const size_t view_nbytes = ggml_nbytes(view);
+    return view_nbytes <= attn_nbytes - view->view_offs;
+}
+
+static bool ggml_backend_hrx_gated_delta_net_state_tail_dead_except_update(
+        const ggml_cgraph * cgraph,
+        int gdn_idx,
+        int state_view_idx,
+        int state_update_idx) {
+    if (ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_GATED_DELTA_NET_STATE_UPDATE_DIRECT_WRITE") ||
+        gdn_idx < 0 ||
+        state_view_idx < 0 ||
+        state_update_idx < 0 ||
+        gdn_idx >= cgraph->n_nodes ||
+        state_view_idx >= cgraph->n_nodes ||
+        state_update_idx >= cgraph->n_nodes) {
+        return false;
+    }
+
+    const ggml_tensor * gdn = cgraph->nodes[gdn_idx];
+    const ggml_tensor * state_view = cgraph->nodes[state_view_idx];
+    const ggml_tensor * state_update = cgraph->nodes[state_update_idx];
+    if (!gdn ||
+        !state_view ||
+        !state_update ||
+        gdn->op != GGML_OP_GATED_DELTA_NET ||
+        state_view->op != GGML_OP_VIEW ||
+        state_view->src[0] != gdn ||
+        state_view->view_src != gdn ||
+        state_update->op != GGML_OP_CPY ||
+        state_update->src[0] != state_view ||
+        (gdn->flags & GGML_TENSOR_FLAG_OUTPUT) ||
+        (state_view->flags & GGML_TENSOR_FLAG_OUTPUT)) {
+        return false;
+    }
+
+    const ggml_tensor * v = gdn->src[2];
+    if (!v) {
+        return false;
+    }
+    const size_t attn_nbytes =
+        static_cast<size_t>(v->ne[0] * v->ne[1] * v->ne[2] * v->ne[3]) * sizeof(float);
+    if (state_view->view_offs != attn_nbytes) {
+        return false;
+    }
+
+    bool saw_prefix_view = false;
+    for (int i = 0; i < cgraph->n_nodes; ++i) {
+        const ggml_tensor * node = cgraph->nodes[i];
+        if (!node || node == gdn) {
+            continue;
+        }
+
+        if (node->view_src == gdn && node != state_view) {
+            if (!ggml_backend_hrx_gated_delta_net_prefix_view(gdn, node, attn_nbytes)) {
+                return false;
+            }
+            saw_prefix_view = true;
+        }
+
+        if (node == state_view || node == state_update) {
+            continue;
+        }
+
+        for (int src_idx = 0; src_idx < GGML_MAX_SRC; ++src_idx) {
+            if (node->src[src_idx] == state_view) {
+                return false;
+            }
+            if (node->src[src_idx] == gdn) {
+                if (!ggml_backend_hrx_gated_delta_net_prefix_view(gdn, node, attn_nbytes)) {
+                    return false;
+                }
+                saw_prefix_view = true;
+            }
+        }
+    }
+
+    return saw_prefix_view;
+}
+
 static bool ggml_backend_hrx_is_metadata_op(ggml_op op) {
     return op == GGML_OP_NONE ||
            op == GGML_OP_RESHAPE ||
@@ -9080,17 +9171,22 @@ static const ggml_tensor * ggml_backend_hrx_find_gated_delta_net_state_update(
         int gdn_idx,
         const ggml_backend_hrx_device_context * device_context) {
     const ggml_tensor * gdn = cgraph->nodes[gdn_idx];
-    if (gdn_idx + 2 >= cgraph->n_nodes) {
+    if (gdn_idx + 1 >= cgraph->n_nodes) {
         return nullptr;
     }
-    const ggml_tensor * state_view = cgraph->nodes[gdn_idx + 1];
-    const ggml_tensor * cpy = cgraph->nodes[gdn_idx + 2];
-    if (state_view &&
-        state_view->op == GGML_OP_VIEW &&
-        cpy &&
-        cpy->src[0] == state_view &&
-        ggml_backend_hrx_supports_gated_delta_net_state_update(device_context, gdn, cpy)) {
-        return cpy;
+    for (int i = gdn_idx + 1; i < cgraph->n_nodes; ++i) {
+        const ggml_tensor * node = cgraph->nodes[i];
+        if (node &&
+            node->op == GGML_OP_CPY &&
+            node->src[0] &&
+            node->src[0]->op == GGML_OP_VIEW &&
+            node->src[0]->src[0] == gdn &&
+            ggml_backend_hrx_supports_gated_delta_net_state_update(device_context, gdn, node)) {
+            return node;
+        }
+        if (!node || !ggml_backend_hrx_is_metadata_op(node->op)) {
+            break;
+        }
     }
     return nullptr;
 }
@@ -9557,7 +9653,12 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
                 const int output_count = state_update ? 2 : 1;
                 if ((!state_update || (state_update_idx >= 0 && state_view_idx >= 0)) &&
                     ggml_can_fuse_subgraph_ext(cgraph, idxs, count, ops, outputs, output_count)) {
-                    if (ggml_backend_hrx_dispatch_gated_delta_net(context, gdn, state_update, true) !=
+                    const bool preserve_state_tail =
+                        state_update &&
+                        !ggml_backend_hrx_gated_delta_net_state_tail_dead_except_update(
+                            cgraph, gdn_idx, state_view_idx, state_update_idx);
+                    if (ggml_backend_hrx_dispatch_gated_delta_net(
+                            context, gdn, state_update, true, preserve_state_tail) !=
                             GGML_STATUS_SUCCESS) {
                         return GGML_STATUS_FAILED;
                     }
@@ -9580,7 +9681,11 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
                 ggml_op ops[3] = { GGML_OP_GATED_DELTA_NET, GGML_OP_VIEW, GGML_OP_CPY };
                 int outputs[2] = { i, state_update_idx };
                 if (ggml_can_fuse_subgraph_ext(cgraph, idxs, 3, ops, outputs, 2)) {
-                    if (ggml_backend_hrx_dispatch_gated_delta_net(context, node, state_update) !=
+                    const bool preserve_state_tail =
+                        !ggml_backend_hrx_gated_delta_net_state_tail_dead_except_update(
+                            cgraph, i, state_view_idx, state_update_idx);
+                    if (ggml_backend_hrx_dispatch_gated_delta_net(
+                            context, node, state_update, false, preserve_state_tail) !=
                             GGML_STATUS_SUCCESS) {
                         return GGML_STATUS_FAILED;
                     }
