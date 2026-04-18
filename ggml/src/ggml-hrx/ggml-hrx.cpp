@@ -4107,17 +4107,22 @@ static constexpr int64_t GGML_HRX_Q8_1_MMVQ_AUTO_K_MIN = 2048;
 static constexpr int64_t GGML_HRX_Q8_1_MMVQ_AUTO_Q4_K_ROWS_MIN = 4096;
 static constexpr int64_t GGML_HRX_Q8_1_MMVQ_AUTO_Q5_Q6_K_ROWS_MIN = 2048;
 static constexpr int64_t GGML_HRX_Q8_1_MMVQ_AUTO_Q8_0_ROWS_MIN = 2048;
+static constexpr int64_t GGML_HRX_Q8_1_MMVQ_AUTO_COLS_MIN = 32;
 
 static bool ggml_backend_hrx_q8_1_mmvq_auto_shape(const ggml_tensor * op, ggml_type type) {
     const ggml_tensor * src0 = op->src[0];
-    if (!src0 || src0->ne[0] < GGML_HRX_Q8_1_MMVQ_AUTO_K_MIN) {
+    const ggml_tensor * src1 = op->src[1];
+    if (!src0 || !src1 ||
+        src0->ne[0] < GGML_HRX_Q8_1_MMVQ_AUTO_K_MIN ||
+        src1->ne[1] < GGML_HRX_Q8_1_MMVQ_AUTO_COLS_MIN) {
         return false;
     }
 
     // Conservative auto-policy gates from W7900 profiling on our target
     // quantized Qwen model; do not treat them as broadly tuned performance
-    // crossover points. Use GGML_HRX_Q8_1_MMVQ=all to force smaller
-    // validation or differential-test shapes.
+    // crossover points. Skinny decode is handled by dedicated providers; use
+    // GGML_HRX_Q8_1_MMVQ=all to force smaller validation or differential-test
+    // shapes.
     switch (type) {
         case GGML_TYPE_Q4_K:
             return src0->ne[1] >= GGML_HRX_Q8_1_MMVQ_AUTO_Q4_K_ROWS_MIN;
