@@ -4397,6 +4397,13 @@ static bool ggml_backend_hrx_supports_mul_mat_vec_batched(
 
     const ggml_backend_hrx_op_provider * provider =
         ggml_backend_hrx_select_mul_mat_vec_batched_provider(device_context, op);
+    const bool has_batched_dims =
+        src0->ne[2] != 1 || src0->ne[3] != 1 ||
+        src1->ne[2] != 1 || src1->ne[3] != 1 ||
+        op->ne[2] != 1 || op->ne[3] != 1;
+    const bool has_specialized_2d_provider =
+        provider &&
+        provider != ggml_backend_hrx_mul_mat_vec_batched_provider(device_context, src0->type);
     return provider &&
            provider->kind == ggml_backend_hrx_provider_kind::hsaco &&
            (src0->type == GGML_TYPE_F16 || src0->type == GGML_TYPE_F32) &&
@@ -4407,9 +4414,7 @@ static bool ggml_backend_hrx_supports_mul_mat_vec_batched(
            op->ne[1] == src1->ne[1] &&
            op->ne[2] == src1->ne[2] &&
            op->ne[3] == src1->ne[3] &&
-           (src0->ne[2] != 1 || src0->ne[3] != 1 ||
-            src1->ne[2] != 1 || src1->ne[3] != 1 ||
-            op->ne[2] != 1 || op->ne[3] != 1) &&
+           (has_batched_dims || has_specialized_2d_provider) &&
            src0->ne[0] > 0 &&
            src0->ne[1] > 0 &&
            src0->ne[2] > 0 &&
@@ -8921,24 +8926,43 @@ static bool ggml_backend_hrx_try_ssm_conv_update_fusion(
         ggml_backend_hrx_ssm_conv_update_fusion * fusion) {
     *fusion = {};
     const ggml_tensor * concat = cgraph->nodes[concat_idx];
-    if (!concat || concat->op != GGML_OP_CONCAT || concat_idx + 3 >= cgraph->n_nodes) {
+    if (!concat || concat->op != GGML_OP_CONCAT || concat_idx + 2 >= cgraph->n_nodes) {
         return false;
     }
 
-    const int state_view_idx = concat_idx + 1;
-    const int state_update_idx = concat_idx + 2;
-    const int ssm_idx = concat_idx + 3;
-    const ggml_tensor * state_view = cgraph->nodes[state_view_idx];
-    const ggml_tensor * state_update = cgraph->nodes[state_update_idx];
-    const ggml_tensor * ssm = cgraph->nodes[ssm_idx];
-    if (!state_view ||
-        state_view->op != GGML_OP_VIEW ||
-        !state_update ||
-        state_update->op != GGML_OP_CPY ||
-        state_update->src[0] != state_view ||
-        !ssm ||
-        ssm->op != GGML_OP_SSM_CONV ||
-        ssm->src[0] != concat) {
+    const ggml_tensor * state_view = nullptr;
+    const ggml_tensor * state_update = nullptr;
+    const ggml_tensor * ssm = nullptr;
+    int state_view_idx = -1;
+    int state_update_idx = -1;
+    int ssm_idx = -1;
+
+    for (int i = concat_idx + 1; i < cgraph->n_nodes; ++i) {
+        const ggml_tensor * node = cgraph->nodes[i];
+        if (node->op == GGML_OP_VIEW && node->src[0] == concat && node->view_src == concat) {
+            state_view = node;
+            state_view_idx = i;
+            continue;
+        }
+        if (node->op == GGML_OP_CPY &&
+            node->src[0] &&
+            node->src[0]->op == GGML_OP_VIEW &&
+            node->src[0]->src[0] == concat &&
+            node->src[0]->view_src == concat) {
+            state_view = node->src[0];
+            state_update = node;
+            state_update_idx = i;
+            continue;
+        }
+        if (node->op != GGML_OP_SSM_CONV || node->src[0] != concat || !state_update) {
+            continue;
+        }
+        ssm = node;
+        ssm_idx = i;
+        break;
+    }
+
+    if (!state_view || !state_update || !ssm) {
         return false;
     }
 
@@ -8962,12 +8986,17 @@ static bool ggml_backend_hrx_try_ssm_conv_update_fusion(
         return false;
     }
 
-    std::array<int, 5> idxs = { concat_idx, state_view_idx, state_update_idx, ssm_idx, out_idx };
-    std::array<ggml_op, 5> ops = { GGML_OP_CONCAT, GGML_OP_VIEW, GGML_OP_CPY, GGML_OP_SSM_CONV, GGML_OP_UNARY };
-    int count = 5;
+    std::array<int, 5> idxs = { concat_idx, state_update_idx, ssm_idx, out_idx, 0 };
+    std::array<ggml_op, 5> ops = { GGML_OP_CONCAT, GGML_OP_CPY, GGML_OP_SSM_CONV, GGML_OP_UNARY, GGML_OP_NONE };
+    int count = 4;
+    if (state_view_idx >= 0) {
+        idxs = { concat_idx, state_view_idx, state_update_idx, ssm_idx, out_idx };
+        ops = { GGML_OP_CONCAT, GGML_OP_VIEW, GGML_OP_CPY, GGML_OP_SSM_CONV, GGML_OP_UNARY };
+        count = 5;
+    }
     int outputs[2] = { state_update_idx, out_idx };
     if (!apply_silu) {
-        count = 4;
+        count--;
         outputs[1] = ssm_idx;
     }
     if (!ggml_can_fuse_subgraph_ext(cgraph, idxs.data(), count, ops.data(), outputs, 2)) {
@@ -9580,6 +9609,9 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
                 }
                 break;
             case GGML_OP_SCALE:
+                if (ggml_nelements(node) == 0) {
+                    break;
+                }
                 if (!ggml_backend_hrx_supports_scale(context->device_context, node)) {
                     GGML_LOG_ERROR("%s: SCALE shape/type/layout is unsupported\n", __func__);
                     return GGML_STATUS_FAILED;
