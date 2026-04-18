@@ -1721,6 +1721,32 @@ static bool ggml_backend_hrx_sync_streams(ggml_backend_hrx_device_context * devi
     return ok;
 }
 
+static bool ggml_backend_hrx_sync_graph_entry_streams(
+        ggml_backend_hrx_device_context * device_context,
+        hrx_stream_t graph_stream) {
+    if (!device_context) {
+        return true;
+    }
+
+    std::lock_guard<std::mutex> lock(device_context->streams_mutex);
+    hrx_stream_t streams[] = {
+        device_context->active_stream,
+        device_context->transfer_stream,
+    };
+
+    bool ok = true;
+    for (hrx_stream_t stream : streams) {
+        if (!stream || stream == graph_stream) {
+            continue;
+        }
+        ok = GGML_HRX_CHECK(hrx_stream_synchronize(stream)) && ok;
+        if (auto * arena = ggml_backend_hrx_find_staging_arena_locked(device_context, stream)) {
+            ggml_backend_hrx_reset_staging_arena_locked(*arena);
+        }
+    }
+    return ok;
+}
+
 static bool ggml_backend_hrx_prepare_stream_signal(
         hrx_stream_t stream,
         hrx_semaphore_t * semaphore,
@@ -9101,7 +9127,7 @@ struct ggml_backend_hrx_active_graph_guard {
 
 static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_cgraph * cgraph) {
     auto * context = static_cast<ggml_backend_hrx_context *>(backend->context);
-    if (!ggml_backend_hrx_sync_streams(context->device_context)) {
+    if (!ggml_backend_hrx_sync_graph_entry_streams(context->device_context, context->stream)) {
         return GGML_STATUS_FAILED;
     }
     {
