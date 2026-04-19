@@ -29,7 +29,7 @@ namespace {
 static constexpr size_t GGML_HRX_ALIGNMENT = 256;
 static constexpr uintptr_t GGML_HRX_FAKE_PTR_BASE = 0x1000;
 static constexpr size_t GGML_HRX_STAGING_ARENA_DEFAULT_SIZE = 8 * 1024 * 1024;
-static constexpr uint64_t GGML_HRX_DEFAULT_NODES_PER_SUBMIT = 100;
+static constexpr uint64_t GGML_HRX_DEFAULT_DISPATCHES_PER_SUBMIT = 12;
 static constexpr uint64_t GGML_HRX_DEFAULT_MAX_MUL_MAT_BYTES_PER_SUBMIT = 100ull * 1000ull * 1000ull;
 
 struct ggml_backend_hrx_staging_arena {
@@ -1294,13 +1294,12 @@ struct ggml_backend_hrx_context {
     std::string name;
     std::vector<ggml_backend_hrx_scratch_buffer> scratch_buffers;
     uint64_t last_total_mul_mat_bytes = 0;
-    uint64_t submitted_nodes = 0;
+    uint64_t submitted_dispatches = 0;
     uint64_t mul_mat_bytes = 0;
     uint64_t total_mul_mat_bytes = 0;
     uint64_t mul_mat_bytes_per_submit = 0;
     uint64_t submit_count = 0;
     uint64_t submit_flush_count = 0;
-    const ggml_tensor * last_submitted_node = nullptr;
 };
 
 static thread_local ggml_backend_hrx_context * g_hrx_active_graph_context = nullptr;
@@ -1342,8 +1341,8 @@ static bool ggml_backend_hrx_env_enabled(const char * name) {
     return value && value[0] != '\0' && std::strcmp(value, "0") != 0;
 }
 
-static uint64_t ggml_backend_hrx_nodes_per_submit() {
-    return ggml_backend_hrx_u64_from_env("GGML_HRX_NODES_PER_SUBMIT", GGML_HRX_DEFAULT_NODES_PER_SUBMIT);
+static uint64_t ggml_backend_hrx_dispatches_per_submit() {
+    return ggml_backend_hrx_u64_from_env("GGML_HRX_DISPATCHES_PER_SUBMIT", GGML_HRX_DEFAULT_DISPATCHES_PER_SUBMIT);
 }
 
 static uint64_t ggml_backend_hrx_max_mul_mat_bytes_per_submit() {
@@ -1367,13 +1366,12 @@ static void ggml_backend_hrx_begin_submit_batch(ggml_backend_hrx_context * conte
     }
     const uint64_t max_bytes = ggml_backend_hrx_max_mul_mat_bytes_per_submit();
     const uint64_t last_scaled = context->last_total_mul_mat_bytes / 40u;
-    context->submitted_nodes = 0;
+    context->submitted_dispatches = 0;
     context->mul_mat_bytes = 0;
     context->total_mul_mat_bytes = 0;
     context->mul_mat_bytes_per_submit = std::min(max_bytes, last_scaled);
     context->submit_count = 0;
     context->submit_flush_count = 0;
-    context->last_submitted_node = nullptr;
 }
 
 static hrx_status_t ggml_backend_hrx_maybe_submit_batch_after_dispatch(hrx_stream_t stream) {
@@ -1383,28 +1381,28 @@ static hrx_status_t ggml_backend_hrx_maybe_submit_batch_after_dispatch(hrx_strea
     }
 
     const ggml_tensor * node = g_hrx_active_graph_node;
-    if (node && node != context->last_submitted_node) {
+    if (node) {
         const uint64_t matmul_bytes = ggml_backend_hrx_node_mul_mat_bytes(node);
-        context->last_submitted_node = node;
-        context->submitted_nodes++;
+        context->submitted_dispatches++;
         context->mul_mat_bytes += matmul_bytes;
         context->total_mul_mat_bytes += matmul_bytes;
     }
 
-    const uint64_t nodes_per_submit = ggml_backend_hrx_nodes_per_submit();
-    const bool node_threshold = nodes_per_submit != 0 && context->submitted_nodes >= nodes_per_submit;
+    const uint64_t dispatches_per_submit = ggml_backend_hrx_dispatches_per_submit();
+    const bool dispatch_threshold =
+        dispatches_per_submit != 0 && context->submitted_dispatches >= dispatches_per_submit;
     const bool byte_threshold =
         context->mul_mat_bytes_per_submit != 0 && context->mul_mat_bytes >= context->mul_mat_bytes_per_submit;
-    if (!node_threshold && !byte_threshold) {
+    if (!dispatch_threshold && !byte_threshold) {
         return hrx_ok_status();
     }
 
     if (ggml_backend_hrx_env_enabled("GGML_HRX_TRACE_SUBMIT_BATCHING")) {
         GGML_LOG_DEBUG(
-            "%s: submit nodes=%" PRIu64 " mul_mat_bytes=%" PRIu64
+            "%s: submit dispatches=%" PRIu64 " mul_mat_bytes=%" PRIu64
             " mul_mat_bytes_per_submit=%" PRIu64 " submit_count=%" PRIu64 "\n",
             __func__,
-            context->submitted_nodes,
+            context->submitted_dispatches,
             context->mul_mat_bytes,
             context->mul_mat_bytes_per_submit,
             context->submit_count);
@@ -1415,7 +1413,7 @@ static hrx_status_t ggml_backend_hrx_maybe_submit_batch_after_dispatch(hrx_strea
         return status;
     }
 
-    context->submitted_nodes = 0;
+    context->submitted_dispatches = 0;
     context->mul_mat_bytes = 0;
     if (context->submit_count < 3) {
         context->mul_mat_bytes_per_submit *= 2;
