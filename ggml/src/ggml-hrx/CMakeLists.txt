@@ -243,6 +243,11 @@ ggml_hrx_add_kernel_source(
         "${CMAKE_CURRENT_SOURCE_DIR}/kernels/topk_moe_f32_common.hip.inc"
         "${CMAKE_CURRENT_SOURCE_DIR}/kernels/topk_moe_f32_wave.inc"
 )
+ggml_hrx_add_kernel_source(
+    SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/kernels/topk_moe_f32_wave32_top8_norm.hip.cpp"
+    WAVEFRONT_SIZE 32
+    DEPS "${CMAKE_CURRENT_SOURCE_DIR}/kernels/topk_moe_f32_common.hip.inc"
+)
 
 add_custom_command(
     OUTPUT "${GGML_HRX_KERNEL_CATALOG_CPP}"

@@ -70,6 +70,32 @@ static __device__ __forceinline__ float hrx_q4_k_q_from_pack(unsigned long long 
     return high ? static_cast<float>(byte >> 4) : static_cast<float>(byte & 0x0Fu);
 }
 
+static __device__ __forceinline__ float hrx_q4_k_sum_float4(float4 v) {
+    return (v.x + v.y) + (v.z + v.w);
+}
+
+static __device__ __forceinline__ float hrx_q4_k_dot4_from_pack(
+        unsigned long long pack,
+        bool high,
+        float4 y) {
+    return hrx_q4_k_q_from_pack<0>(pack, high) * y.x +
+           hrx_q4_k_q_from_pack<1>(pack, high) * y.y +
+           hrx_q4_k_q_from_pack<2>(pack, high) * y.z +
+           hrx_q4_k_q_from_pack<3>(pack, high) * y.w;
+}
+
+static __device__ __forceinline__ float hrx_q4_k_dot8_from_pack(
+        unsigned long long pack,
+        bool high,
+        float4 y0,
+        float4 y1) {
+    return hrx_q4_k_dot4_from_pack(pack, high, y0) +
+           hrx_q4_k_q_from_pack<4>(pack, high) * y1.x +
+           hrx_q4_k_q_from_pack<5>(pack, high) * y1.y +
+           hrx_q4_k_q_from_pack<6>(pack, high) * y1.z +
+           hrx_q4_k_q_from_pack<7>(pack, high) * y1.w;
+}
+
 template <int WG_SIZE>
 static __device__ __forceinline__ float hrx_reduce_wg(float sum, float * shared) {
     const unsigned int tid = __builtin_amdgcn_workitem_id_x();
@@ -280,15 +306,10 @@ static __device__ __forceinline__ void hrx_mul_mat_id_q4_k_f32_impl(
         const long long src_base = block_idx * 256 + group * 32 + lane;
         const int qs_base = (group >> 1) * 32 + lane;
 
-        #pragma unroll
-        for (int j = 0; j < 4; ++j) {
-            const uint8_t packed = block->qs[qs_base + j];
-            const float q = (group & 1) ?
-                static_cast<float>(packed >> 4) :
-                static_cast<float>(packed & 0x0F);
-            const float b = *reinterpret_cast<const float *>(src1_col + (src_base + j) * sizeof(float));
-            sum += (d * q - min) * b;
-        }
+        const uint32_t packed_qs = *reinterpret_cast<const uint32_t *>(block->qs + qs_base);
+        const float4 b4 = *reinterpret_cast<const float4 *>(src1_col + src_base * sizeof(float));
+        sum += d * hrx_q4_k_dot4_from_pack(packed_qs, (group & 1) != 0, b4) -
+               min * hrx_q4_k_sum_float4(b4);
     }
 
     sum = hrx_reduce_wg<WG_SIZE>(sum, sumsh);
@@ -365,14 +386,8 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_rows2_x16_wg32_f32(
         const float4 b0 = *reinterpret_cast<const float4 *>(src1_col + col * sizeof(float));
         const float4 b1 = *reinterpret_cast<const float4 *>(src1_col + (col + 4) * sizeof(float));
 
-        sum += (d * hrx_q4_k_q_from_pack<0>(qpack, high) - min) * b0.x;
-        sum += (d * hrx_q4_k_q_from_pack<1>(qpack, high) - min) * b0.y;
-        sum += (d * hrx_q4_k_q_from_pack<2>(qpack, high) - min) * b0.z;
-        sum += (d * hrx_q4_k_q_from_pack<3>(qpack, high) - min) * b0.w;
-        sum += (d * hrx_q4_k_q_from_pack<4>(qpack, high) - min) * b1.x;
-        sum += (d * hrx_q4_k_q_from_pack<5>(qpack, high) - min) * b1.y;
-        sum += (d * hrx_q4_k_q_from_pack<6>(qpack, high) - min) * b1.z;
-        sum += (d * hrx_q4_k_q_from_pack<7>(qpack, high) - min) * b1.w;
+        sum += d * hrx_q4_k_dot8_from_pack(qpack, high, b0, b1) -
+               min * (hrx_q4_k_sum_float4(b0) + hrx_q4_k_sum_float4(b1));
     }
 
     for (int offset = 8; offset > 0; offset >>= 1) {
@@ -458,22 +473,17 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_row4_wg64_f32(
         const long long src_base = block_idx * 256 + group * 32 + lane;
         const int qs_base = (group >> 1) * 32 + lane;
 
-        #pragma unroll
-        for (int j = 0; j < 4; ++j) {
-            const float b = *reinterpret_cast<const float *>(src1_col + (src_base + j) * sizeof(float));
-            const uint8_t packed0 = block0->qs[qs_base + j];
-            const uint8_t packed1 = block1->qs[qs_base + j];
-            const uint8_t packed2 = block2->qs[qs_base + j];
-            const uint8_t packed3 = block3->qs[qs_base + j];
-            const float q0 = (group & 1) ? static_cast<float>(packed0 >> 4) : static_cast<float>(packed0 & 0x0F);
-            const float q1 = (group & 1) ? static_cast<float>(packed1 >> 4) : static_cast<float>(packed1 & 0x0F);
-            const float q2 = (group & 1) ? static_cast<float>(packed2 >> 4) : static_cast<float>(packed2 & 0x0F);
-            const float q3 = (group & 1) ? static_cast<float>(packed3 >> 4) : static_cast<float>(packed3 & 0x0F);
-            sum0 += (d0 * q0 - min0) * b;
-            sum1 += (d1 * q1 - min1) * b;
-            sum2 += (d2 * q2 - min2) * b;
-            sum3 += (d3 * q3 - min3) * b;
-        }
+        const float4 b4 = *reinterpret_cast<const float4 *>(src1_col + src_base * sizeof(float));
+        const uint32_t packed_qs0 = *reinterpret_cast<const uint32_t *>(block0->qs + qs_base);
+        const uint32_t packed_qs1 = *reinterpret_cast<const uint32_t *>(block1->qs + qs_base);
+        const uint32_t packed_qs2 = *reinterpret_cast<const uint32_t *>(block2->qs + qs_base);
+        const uint32_t packed_qs3 = *reinterpret_cast<const uint32_t *>(block3->qs + qs_base);
+        const float ysum = hrx_q4_k_sum_float4(b4);
+        const bool high = (group & 1) != 0;
+        sum0 += d0 * hrx_q4_k_dot4_from_pack(packed_qs0, high, b4) - min0 * ysum;
+        sum1 += d1 * hrx_q4_k_dot4_from_pack(packed_qs1, high, b4) - min1 * ysum;
+        sum2 += d2 * hrx_q4_k_dot4_from_pack(packed_qs2, high, b4) - min2 * ysum;
+        sum3 += d3 * hrx_q4_k_dot4_from_pack(packed_qs3, high, b4) - min3 * ysum;
     }
 
     hrx_reduce_wg4<64>(sum0, sum1, sum2, sum3, sumsh);
@@ -604,30 +614,22 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_row8_wg64_f32(
         const uint32_t packed_qs5 = *reinterpret_cast<const uint32_t *>(block5->qs + qs_base);
         const uint32_t packed_qs6 = *reinterpret_cast<const uint32_t *>(block6->qs + qs_base);
         const uint32_t packed_qs7 = *reinterpret_cast<const uint32_t *>(block7->qs + qs_base);
+        const float ysum = hrx_q4_k_sum_float4(b4);
+        const bool high = (group & 1) != 0;
 
-#define HRX_Q4K_ROW8_ACC(N, J, FIELD) \
+#define HRX_Q4K_ROW8_ACC(N) \
         do { \
-            const uint8_t packed = static_cast<uint8_t>(packed_qs##N >> ((J) * 8)); \
-            const float q = (group & 1) ? static_cast<float>(packed >> 4) : static_cast<float>(packed & 0x0F); \
-            sum##N += (d##N * q - min##N) * b4.FIELD; \
+            sum##N += d##N * hrx_q4_k_dot4_from_pack(packed_qs##N, high, b4) - min##N * ysum; \
         } while (0)
-#define HRX_Q4K_ROW8_STEP(J, FIELD) \
-        do { \
-            HRX_Q4K_ROW8_ACC(0, J, FIELD); \
-            HRX_Q4K_ROW8_ACC(1, J, FIELD); \
-            HRX_Q4K_ROW8_ACC(2, J, FIELD); \
-            HRX_Q4K_ROW8_ACC(3, J, FIELD); \
-            HRX_Q4K_ROW8_ACC(4, J, FIELD); \
-            HRX_Q4K_ROW8_ACC(5, J, FIELD); \
-            HRX_Q4K_ROW8_ACC(6, J, FIELD); \
-            HRX_Q4K_ROW8_ACC(7, J, FIELD); \
-        } while (0)
-        HRX_Q4K_ROW8_STEP(0, x);
-        HRX_Q4K_ROW8_STEP(1, y);
-        HRX_Q4K_ROW8_STEP(2, z);
-        HRX_Q4K_ROW8_STEP(3, w);
+        HRX_Q4K_ROW8_ACC(0);
+        HRX_Q4K_ROW8_ACC(1);
+        HRX_Q4K_ROW8_ACC(2);
+        HRX_Q4K_ROW8_ACC(3);
+        HRX_Q4K_ROW8_ACC(4);
+        HRX_Q4K_ROW8_ACC(5);
+        HRX_Q4K_ROW8_ACC(6);
+        HRX_Q4K_ROW8_ACC(7);
 #undef HRX_Q4K_ROW8_ACC
-#undef HRX_Q4K_ROW8_STEP
     }
 
     hrx_reduce_wg8<64>(sum0, sum1, sum2, sum3, sum4, sum5, sum6, sum7, sumsh);
@@ -937,33 +939,40 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_grouped_row2_route8_wg64_f32(
             HRX_Q4K_GROUPED_ROW2_ROUTE8_LOAD4(h);
 #undef HRX_Q4K_GROUPED_ROW2_ROUTE8_LOAD4
 
-#define HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(N, J) \
-                do { \
-                    const uint8_t packed = static_cast<uint8_t>(packed_qs##N >> ((J) * 8)); \
-                    const float q = (group & 1) ? static_cast<float>(packed >> 4) : static_cast<float>(packed & 0x0F); \
-                    const float v = d##N * q - min##N; \
-                    s##N##a += v * ba; s##N##b += v * bb; s##N##c += v * bc; s##N##d += v * bd; \
-                    s##N##e += v * be; s##N##f += v * bf; s##N##g += v * bg; s##N##h += v * bh; \
-                } while (0)
-#define HRX_Q4K_GROUPED_ROW2_ROUTE8_STEP(J, FIELD) \
+            const bool high = (group & 1) != 0;
+#define HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM(S) \
+            const float ysum_##S = hrx_q4_k_sum_float4(b4_##S)
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM(a);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM(b);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM(c);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM(d);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM(e);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM(f);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM(g);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM(h);
+#undef HRX_Q4K_GROUPED_ROW2_ROUTE8_YSUM
+
+#define HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(N, S) \
             do { \
-                const float ba = b4_a.FIELD; \
-                const float bb = b4_b.FIELD; \
-                const float bc = b4_c.FIELD; \
-                const float bd = b4_d.FIELD; \
-                const float be = b4_e.FIELD; \
-                const float bf = b4_f.FIELD; \
-                const float bg = b4_g.FIELD; \
-                const float bh = b4_h.FIELD; \
-                HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(0, J); \
-                HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(1, J); \
+                s##N##S += d##N * hrx_q4_k_dot4_from_pack(packed_qs##N, high, b4_##S) - min##N * ysum_##S; \
             } while (0)
-            HRX_Q4K_GROUPED_ROW2_ROUTE8_STEP(0, x);
-            HRX_Q4K_GROUPED_ROW2_ROUTE8_STEP(1, y);
-            HRX_Q4K_GROUPED_ROW2_ROUTE8_STEP(2, z);
-            HRX_Q4K_GROUPED_ROW2_ROUTE8_STEP(3, w);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(0, a);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(0, b);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(0, c);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(0, d);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(0, e);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(0, f);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(0, g);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(0, h);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(1, a);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(1, b);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(1, c);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(1, d);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(1, e);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(1, f);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(1, g);
+            HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC(1, h);
 #undef HRX_Q4K_GROUPED_ROW2_ROUTE8_ACC
-#undef HRX_Q4K_GROUPED_ROW2_ROUTE8_STEP
         }
 
         const unsigned int reduce_lane = tid & (warpSize - 1);

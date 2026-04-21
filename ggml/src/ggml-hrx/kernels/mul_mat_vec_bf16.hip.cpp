@@ -596,6 +596,59 @@ extern "C" __global__ void hrx_mul_mat_vec_bf16_rows2_cols1_wg32_f32(
     }
 }
 
+extern "C" __global__ void hrx_mul_mat_vec_bf16_rows2_cols1_x8_wg32_f32(
+        const uint16_t * src0, const float * src1, float * dst,
+        long long k, long long rows, long long cols) {
+    const long long row0 = static_cast<long long>(__builtin_amdgcn_workgroup_id_x()) * 2;
+    const long long row1 = row0 + 1;
+    const unsigned int tid = __builtin_amdgcn_workitem_id_x();
+    if (row0 >= rows) {
+        return;
+    }
+    (void) cols;
+
+    const bool have_row1 = row1 < rows;
+    float sum0 = 0.0f;
+    float sum1 = 0.0f;
+
+    for (long long i = static_cast<long long>(tid) * 8; i < k; i += 256) {
+        const float4 b0 = *reinterpret_cast<const float4 *>(src1 + i);
+        const float4 b1 = *reinterpret_cast<const float4 *>(src1 + i + 4);
+        const uint4 a0 = *reinterpret_cast<const uint4 *>(src0 + row0 * k + i);
+        sum0 += hrx_bf16_to_f32(static_cast<uint16_t>(a0.x & 0xffffu)) * b0.x;
+        sum0 += hrx_bf16_to_f32(static_cast<uint16_t>(a0.x >> 16)) * b0.y;
+        sum0 += hrx_bf16_to_f32(static_cast<uint16_t>(a0.y & 0xffffu)) * b0.z;
+        sum0 += hrx_bf16_to_f32(static_cast<uint16_t>(a0.y >> 16)) * b0.w;
+        sum0 += hrx_bf16_to_f32(static_cast<uint16_t>(a0.z & 0xffffu)) * b1.x;
+        sum0 += hrx_bf16_to_f32(static_cast<uint16_t>(a0.z >> 16)) * b1.y;
+        sum0 += hrx_bf16_to_f32(static_cast<uint16_t>(a0.w & 0xffffu)) * b1.z;
+        sum0 += hrx_bf16_to_f32(static_cast<uint16_t>(a0.w >> 16)) * b1.w;
+        if (have_row1) {
+            const uint4 a1 = *reinterpret_cast<const uint4 *>(src0 + row1 * k + i);
+            sum1 += hrx_bf16_to_f32(static_cast<uint16_t>(a1.x & 0xffffu)) * b0.x;
+            sum1 += hrx_bf16_to_f32(static_cast<uint16_t>(a1.x >> 16)) * b0.y;
+            sum1 += hrx_bf16_to_f32(static_cast<uint16_t>(a1.y & 0xffffu)) * b0.z;
+            sum1 += hrx_bf16_to_f32(static_cast<uint16_t>(a1.y >> 16)) * b0.w;
+            sum1 += hrx_bf16_to_f32(static_cast<uint16_t>(a1.z & 0xffffu)) * b1.x;
+            sum1 += hrx_bf16_to_f32(static_cast<uint16_t>(a1.z >> 16)) * b1.y;
+            sum1 += hrx_bf16_to_f32(static_cast<uint16_t>(a1.w & 0xffffu)) * b1.z;
+            sum1 += hrx_bf16_to_f32(static_cast<uint16_t>(a1.w >> 16)) * b1.w;
+        }
+    }
+
+    for (int offset = 16; offset > 0; offset >>= 1) {
+        sum0 += __shfl_down(sum0, offset, 32);
+        sum1 += __shfl_down(sum1, offset, 32);
+    }
+
+    if (tid == 0) {
+        dst[row0] = sum0;
+        if (have_row1) {
+            dst[row1] = sum1;
+        }
+    }
+}
+
 extern "C" __global__ void hrx_mul_mat_vec_bf16_rows4_k512_cols1_lds_wg256_f32(
         const uint16_t * src0, const float * src1, float * dst,
         long long k, long long rows, long long cols) {

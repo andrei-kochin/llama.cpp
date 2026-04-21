@@ -974,6 +974,7 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_cols3_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_rows2_cols1_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_rows2_cols1_wg32_provider;
+    ggml_backend_hrx_op_provider mul_mat_vec_bf16_rows2_cols1_x8_wg32_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_rows4_k512_cols1_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_rows4_k2048_cols1_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_cols4_provider;
@@ -1005,6 +1006,7 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider mul_mat_vec_f16_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_f16_batched_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_f16_batched_cols1_provider;
+    ggml_backend_hrx_op_provider mul_mat_vec_f16_batched_rows2_cols1_x8_wg32_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_f16_batched_cols4_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_f16_batched_cols8_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_f16_batched_cols16_provider;
@@ -1097,6 +1099,10 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider topk_moe_f32_shared4_provider;
     ggml_backend_hrx_op_provider topk_moe_f32_shared8_provider;
     ggml_backend_hrx_op_provider topk_moe_f32_wave32_provider;
+    ggml_backend_hrx_op_provider topk_moe_f32_wave32_n32_top8_norm_provider;
+    ggml_backend_hrx_op_provider topk_moe_f32_wave32_n64_top8_norm_provider;
+    ggml_backend_hrx_op_provider topk_moe_f32_wave32_n128_top8_norm_provider;
+    ggml_backend_hrx_op_provider topk_moe_f32_wave32_n256_top8_norm_provider;
     ggml_backend_hrx_op_provider rope_f32_provider;
     ggml_backend_hrx_op_provider rope_set_rows_f32_f16_provider;
     ggml_backend_hrx_op_provider ssm_conv_provider;
@@ -1155,6 +1161,7 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->mul_mat_vec_bf16_cols3_provider.reset();
     device_context->mul_mat_vec_bf16_rows2_cols1_provider.reset();
     device_context->mul_mat_vec_bf16_rows2_cols1_wg32_provider.reset();
+    device_context->mul_mat_vec_bf16_rows2_cols1_x8_wg32_provider.reset();
     device_context->mul_mat_vec_bf16_rows4_k512_cols1_provider.reset();
     device_context->mul_mat_vec_bf16_rows4_k2048_cols1_provider.reset();
     device_context->mul_mat_vec_bf16_cols4_provider.reset();
@@ -1186,6 +1193,7 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->mul_mat_vec_f16_provider.reset();
     device_context->mul_mat_vec_f16_batched_provider.reset();
     device_context->mul_mat_vec_f16_batched_cols1_provider.reset();
+    device_context->mul_mat_vec_f16_batched_rows2_cols1_x8_wg32_provider.reset();
     device_context->mul_mat_vec_f16_batched_cols4_provider.reset();
     device_context->mul_mat_vec_f16_batched_cols8_provider.reset();
     device_context->mul_mat_vec_f16_batched_cols16_provider.reset();
@@ -1288,6 +1296,10 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->topk_moe_f32_shared4_provider.reset();
     device_context->topk_moe_f32_shared8_provider.reset();
     device_context->topk_moe_f32_wave32_provider.reset();
+    device_context->topk_moe_f32_wave32_n32_top8_norm_provider.reset();
+    device_context->topk_moe_f32_wave32_n64_top8_norm_provider.reset();
+    device_context->topk_moe_f32_wave32_n128_top8_norm_provider.reset();
+    device_context->topk_moe_f32_wave32_n256_top8_norm_provider.reset();
     device_context->rope_f32_provider.reset();
     device_context->rope_set_rows_f32_f16_provider.reset();
     device_context->ssm_conv_provider.reset();
@@ -2612,6 +2624,9 @@ static bool ggml_backend_hrx_load_mul_mat_vec_providers(ggml_backend_hrx_device_
         device_context, "hrx_mul_mat_vec_bf16_rows2_cols1_wg32_f32",
         &device_context->mul_mat_vec_bf16_rows2_cols1_wg32_provider) || ok;
     ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_mul_mat_vec_bf16_rows2_cols1_x8_wg32_f32",
+        &device_context->mul_mat_vec_bf16_rows2_cols1_x8_wg32_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_mul_mat_vec_bf16_rows4_k512_cols1_lds_wg256_f32",
         &device_context->mul_mat_vec_bf16_rows4_k512_cols1_provider) || ok;
     ok = ggml_backend_hrx_load_catalog_provider(
@@ -2695,6 +2710,9 @@ static bool ggml_backend_hrx_load_mul_mat_vec_providers(ggml_backend_hrx_device_
     ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_mul_mat_vec_f16_batched_cols1_f32",
         &device_context->mul_mat_vec_f16_batched_cols1_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_mul_mat_vec_f16_batched_rows2_cols1_x8_wg32_f32",
+        &device_context->mul_mat_vec_f16_batched_rows2_cols1_x8_wg32_provider) || ok;
     ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_mul_mat_vec_f16_batched_cols4_f32",
         &device_context->mul_mat_vec_f16_batched_cols4_provider) || ok;
@@ -2978,6 +2996,18 @@ static bool ggml_backend_hrx_load_topk_moe_f32_providers(ggml_backend_hrx_device
         device_context, "hrx_topk_moe_f32_shared8", &device_context->topk_moe_f32_shared8_provider) || ok;
     ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_topk_moe_f32_wave32", &device_context->topk_moe_f32_wave32_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_topk_moe_f32_wave32_n32_top8_norm",
+        &device_context->topk_moe_f32_wave32_n32_top8_norm_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_topk_moe_f32_wave32_n64_top8_norm",
+        &device_context->topk_moe_f32_wave32_n64_top8_norm_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_topk_moe_f32_wave32_n128_top8_norm",
+        &device_context->topk_moe_f32_wave32_n128_top8_norm_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_topk_moe_f32_wave32_n256_top8_norm",
+        &device_context->topk_moe_f32_wave32_n256_top8_norm_provider) || ok;
     return ok;
 }
 
@@ -4167,6 +4197,12 @@ static const ggml_backend_hrx_op_provider * ggml_backend_hrx_select_mul_mat_vec_
         int64_t rows,
         int64_t cols) {
     if (!ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_BF16_ROWS2_COLS1_DECODE") &&
+        !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_BF16_ROWS2_COLS1_X8_WG32_DECODE") &&
+        cols == 1 && k == 512 && rows == 2048 &&
+        ggml_backend_hrx_provider_available(device_context->mul_mat_vec_bf16_rows2_cols1_x8_wg32_provider)) {
+        return &device_context->mul_mat_vec_bf16_rows2_cols1_x8_wg32_provider;
+    }
+    if (!ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_BF16_ROWS2_COLS1_DECODE") &&
         !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_BF16_ROWS4_K2048_COLS1_DECODE") &&
         cols == 1 && k == 2048 && rows >= 4 &&
         ggml_backend_hrx_provider_available(device_context->mul_mat_vec_bf16_rows4_k2048_cols1_provider)) {
@@ -4338,6 +4374,16 @@ static const ggml_backend_hrx_op_provider * ggml_backend_hrx_select_mul_mat_vec_
     const ggml_tensor * src0 = op->src[0];
     const ggml_tensor * src1 = op->src[1];
     if (src0->type == GGML_TYPE_F16) {
+        if (!ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_F16_BATCHED_ROWS2_COLS1_X8_DECODE") &&
+            src1->ne[1] == 1 &&
+            (src0->ne[0] % 8) == 0 &&
+            src0->ne[1] >= 2 &&
+            src0->ne[3] == 1 &&
+            src1->ne[3] == 1 &&
+            op->ne[3] == 1 &&
+            ggml_backend_hrx_provider_available(device_context->mul_mat_vec_f16_batched_rows2_cols1_x8_wg32_provider)) {
+            return &device_context->mul_mat_vec_f16_batched_rows2_cols1_x8_wg32_provider;
+        }
         if (src1->ne[1] == 1 &&
             src0->ne[3] == 1 &&
             src1->ne[3] == 1 &&
@@ -5685,9 +5731,42 @@ static bool ggml_backend_hrx_supports_topk_moe_f32(
 
 static const ggml_backend_hrx_op_provider & ggml_backend_hrx_select_topk_moe_f32_provider(
         const ggml_backend_hrx_device_context * device_context,
-        int64_t n_rows) {
+        int64_t n_experts,
+        int64_t n_rows,
+        int64_t n_expert_used,
+        bool with_norm,
+        float clamp_min,
+        float clamp_max) {
     const auto provider_available = [](const ggml_backend_hrx_op_provider & provider) {
         return provider.kind == ggml_backend_hrx_provider_kind::hsaco;
+    };
+    const auto select_top8_norm = [&]() -> const ggml_backend_hrx_op_provider * {
+        // The optimized norm path uses exp(top logits) / sum(exp(top logits)).
+        // This is equivalent to the graph's softmax+sum+clamp+div only when the
+        // clamp cannot alter the selected softmax mass. For top8 over N experts,
+        // the selected probability mass is at least 8/N and at most 1.
+        if (ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_TOPK_MOE_TOP8_NORM") ||
+            !with_norm || n_expert_used != 8 ||
+            clamp_min > static_cast<float>(n_expert_used) / static_cast<float>(n_experts) ||
+            clamp_max < 1.0f) {
+            return nullptr;
+        }
+        switch (n_experts) {
+            case 32:
+                return provider_available(device_context->topk_moe_f32_wave32_n32_top8_norm_provider) ?
+                    &device_context->topk_moe_f32_wave32_n32_top8_norm_provider : nullptr;
+            case 64:
+                return provider_available(device_context->topk_moe_f32_wave32_n64_top8_norm_provider) ?
+                    &device_context->topk_moe_f32_wave32_n64_top8_norm_provider : nullptr;
+            case 128:
+                return provider_available(device_context->topk_moe_f32_wave32_n128_top8_norm_provider) ?
+                    &device_context->topk_moe_f32_wave32_n128_top8_norm_provider : nullptr;
+            case 256:
+                return provider_available(device_context->topk_moe_f32_wave32_n256_top8_norm_provider) ?
+                    &device_context->topk_moe_f32_wave32_n256_top8_norm_provider : nullptr;
+            default:
+                return nullptr;
+        }
     };
 
     const auto & baseline = device_context->topk_moe_f32_provider;
@@ -5714,6 +5793,9 @@ static const ggml_backend_hrx_op_provider & ggml_backend_hrx_select_topk_moe_f32
             }
             break;
         case ggml_backend_hrx_topk_moe_variant::auto_select:
+            if (const ggml_backend_hrx_op_provider * top8_norm = select_top8_norm()) {
+                return *top8_norm;
+            }
             if (n_rows == 1 && provider_available(device_context->topk_moe_f32_wave32_provider)) {
                 return device_context->topk_moe_f32_wave32_provider;
             }
@@ -7769,7 +7851,8 @@ static ggml_status ggml_backend_hrx_dispatch_mul_mat_vec(
         }
 
         const uint32_t provider_rows_per_workgroup =
-            provider == &context->device_context->mul_mat_vec_f32_batched_rows2_cols8_provider ? 2 : 1;
+            provider == &context->device_context->mul_mat_vec_f32_batched_rows2_cols8_provider ? 2 :
+            provider == &context->device_context->mul_mat_vec_f16_batched_rows2_cols1_x8_wg32_provider ? 2 : 1;
         const uint32_t provider_cols_per_workgroup =
             provider == &context->device_context->mul_mat_vec_f32_batched_rows2_cols8_provider ? 8 :
             provider == &context->device_context->mul_mat_vec_f32_batched_cols16_provider ? 16 :
@@ -7874,6 +7957,7 @@ static ggml_status ggml_backend_hrx_dispatch_mul_mat_vec(
         provider == &context->device_context->mul_mat_vec_bf16_wmma16_provider ? 16 :
         provider == &context->device_context->mul_mat_vec_bf16_rows4_k512_cols1_provider ? 4 :
         provider == &context->device_context->mul_mat_vec_bf16_rows4_k2048_cols1_provider ? 4 :
+        provider == &context->device_context->mul_mat_vec_bf16_rows2_cols1_x8_wg32_provider ? 2 :
         provider == &context->device_context->mul_mat_vec_bf16_rows2_cols1_wg32_provider ? 2 :
         provider == &context->device_context->mul_mat_vec_bf16_rows2_cols1_provider ? 2 :
         provider == &context->device_context->mul_mat_vec_bf16_rows2_cols16_provider ? 2 : 1;
@@ -8895,7 +8979,9 @@ static ggml_status ggml_backend_hrx_dispatch_topk_moe_f32(
     };
 
     const auto & provider = ggml_backend_hrx_select_topk_moe_f32_provider(
-        context->device_context, constants.n_rows);
+        context->device_context, constants.n_experts, constants.n_rows,
+        constants.n_expert_used, constants.with_norm != 0,
+        constants.clamp_min, constants.clamp_max);
     const uint32_t workgroup_size_x = provider.export_info.workgroup_size[0] ?
         provider.export_info.workgroup_size[0] : 64;
     const uint32_t workgroup_size_y = provider.export_info.workgroup_size[1] ?

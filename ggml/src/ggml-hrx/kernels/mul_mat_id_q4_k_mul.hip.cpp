@@ -43,6 +43,32 @@ static __device__ __forceinline__ float hrx_q4_k_mul_q_from_pack(unsigned long l
     return high ? static_cast<float>(byte >> 4) : static_cast<float>(byte & 0x0Fu);
 }
 
+static __device__ __forceinline__ float hrx_q4_k_mul_sum_float4(float4 v) {
+    return (v.x + v.y) + (v.z + v.w);
+}
+
+static __device__ __forceinline__ float hrx_q4_k_mul_dot4_from_pack(
+        unsigned long long pack,
+        bool high,
+        float4 y) {
+    return hrx_q4_k_mul_q_from_pack<0>(pack, high) * y.x +
+           hrx_q4_k_mul_q_from_pack<1>(pack, high) * y.y +
+           hrx_q4_k_mul_q_from_pack<2>(pack, high) * y.z +
+           hrx_q4_k_mul_q_from_pack<3>(pack, high) * y.w;
+}
+
+static __device__ __forceinline__ float hrx_q4_k_mul_dot8_from_pack(
+        unsigned long long pack,
+        bool high,
+        float4 y0,
+        float4 y1) {
+    return hrx_q4_k_mul_dot4_from_pack(pack, high, y0) +
+           hrx_q4_k_mul_q_from_pack<4>(pack, high) * y1.x +
+           hrx_q4_k_mul_q_from_pack<5>(pack, high) * y1.y +
+           hrx_q4_k_mul_q_from_pack<6>(pack, high) * y1.z +
+           hrx_q4_k_mul_q_from_pack<7>(pack, high) * y1.w;
+}
+
 template <int WG_SIZE>
 static __device__ __forceinline__ float hrx_reduce_wg(float sum, float * shared) {
     const unsigned int tid = __builtin_amdgcn_workitem_id_x();
@@ -121,15 +147,10 @@ static __device__ __forceinline__ void hrx_mul_mat_id_q4_k_mul_f32_impl(
         const long long src_base = block_idx * 256 + group * 32 + lane;
         const int qs_base = (group >> 1) * 32 + lane;
 
-        #pragma unroll
-        for (int j = 0; j < 4; ++j) {
-            const uint8_t packed = block->qs[qs_base + j];
-            const float q = (group & 1) ?
-                static_cast<float>(packed >> 4) :
-                static_cast<float>(packed & 0x0F);
-            const float b = *reinterpret_cast<const float *>(src1_col + (src_base + j) * sizeof(float));
-            sum += (d * q - min) * b;
-        }
+        const uint32_t packed_qs = *reinterpret_cast<const uint32_t *>(block->qs + qs_base);
+        const float4 b4 = *reinterpret_cast<const float4 *>(src1_col + src_base * sizeof(float));
+        sum += d * hrx_q4_k_mul_dot4_from_pack(packed_qs, (group & 1) != 0, b4) -
+               min * hrx_q4_k_mul_sum_float4(b4);
     }
 
     sum = hrx_reduce_wg<WG_SIZE>(sum, sumsh);
@@ -248,19 +269,19 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_mul_packed_wg64_f32(
         const float min3 = dmin * static_cast<float>(m3);
 
         const long long src_base = block_idx * 256 + y_offset;
-        #pragma unroll
-        for (int j = 0; j < 4; ++j) {
-            const uint8_t q01 = block->qs[q_offset + j];
-            const uint8_t q23 = block->qs[q_offset + 64 + j];
-            const float y0 = *reinterpret_cast<const float *>(src1_col + (src_base + j) * sizeof(float));
-            const float y1 = *reinterpret_cast<const float *>(src1_col + (src_base + 32 + j) * sizeof(float));
-            const float y2 = *reinterpret_cast<const float *>(src1_col + (src_base + 128 + j) * sizeof(float));
-            const float y3 = *reinterpret_cast<const float *>(src1_col + (src_base + 160 + j) * sizeof(float));
-            sum += (d0 * static_cast<float>(q01 & 0x0F) - min0) * y0;
-            sum += (d1 * static_cast<float>(q01 >> 4) - min1) * y1;
-            sum += (d2 * static_cast<float>(q23 & 0x0F) - min2) * y2;
-            sum += (d3 * static_cast<float>(q23 >> 4) - min3) * y3;
-        }
+        const unsigned long long q01 = static_cast<unsigned long long>(
+            *reinterpret_cast<const uint32_t *>(block->qs + q_offset));
+        const unsigned long long q23 = static_cast<unsigned long long>(
+            *reinterpret_cast<const uint32_t *>(block->qs + q_offset + 64));
+        const float4 y0 = *reinterpret_cast<const float4 *>(src1_col + src_base * sizeof(float));
+        const float4 y1 = *reinterpret_cast<const float4 *>(src1_col + (src_base + 32) * sizeof(float));
+        const float4 y2 = *reinterpret_cast<const float4 *>(src1_col + (src_base + 128) * sizeof(float));
+        const float4 y3 = *reinterpret_cast<const float4 *>(src1_col + (src_base + 160) * sizeof(float));
+
+        sum += d0 * hrx_q4_k_mul_dot4_from_pack(q01, false, y0) - min0 * hrx_q4_k_mul_sum_float4(y0);
+        sum += d1 * hrx_q4_k_mul_dot4_from_pack(q01, true, y1) - min1 * hrx_q4_k_mul_sum_float4(y1);
+        sum += d2 * hrx_q4_k_mul_dot4_from_pack(q23, false, y2) - min2 * hrx_q4_k_mul_sum_float4(y2);
+        sum += d3 * hrx_q4_k_mul_dot4_from_pack(q23, true, y3) - min3 * hrx_q4_k_mul_sum_float4(y3);
     }
 
     sum = hrx_reduce_wg<64>(sum, sumsh);
@@ -327,14 +348,8 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_mul_rows2_x16_wg32_f32(
         const float4 b0 = *reinterpret_cast<const float4 *>(src1_col + col * sizeof(float));
         const float4 b1 = *reinterpret_cast<const float4 *>(src1_col + (col + 4) * sizeof(float));
 
-        sum += (d * hrx_q4_k_mul_q_from_pack<0>(qpack, high) - min) * b0.x;
-        sum += (d * hrx_q4_k_mul_q_from_pack<1>(qpack, high) - min) * b0.y;
-        sum += (d * hrx_q4_k_mul_q_from_pack<2>(qpack, high) - min) * b0.z;
-        sum += (d * hrx_q4_k_mul_q_from_pack<3>(qpack, high) - min) * b0.w;
-        sum += (d * hrx_q4_k_mul_q_from_pack<4>(qpack, high) - min) * b1.x;
-        sum += (d * hrx_q4_k_mul_q_from_pack<5>(qpack, high) - min) * b1.y;
-        sum += (d * hrx_q4_k_mul_q_from_pack<6>(qpack, high) - min) * b1.z;
-        sum += (d * hrx_q4_k_mul_q_from_pack<7>(qpack, high) - min) * b1.w;
+        sum += d * hrx_q4_k_mul_dot8_from_pack(qpack, high, b0, b1) -
+               min * (hrx_q4_k_mul_sum_float4(b0) + hrx_q4_k_mul_sum_float4(b1));
     }
 
     for (int offset = 8; offset > 0; offset >>= 1) {

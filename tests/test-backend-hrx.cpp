@@ -3874,6 +3874,9 @@ int main() {
         run_mul_mat_vec_batched_case(
             backend.get(), dev, GGML_TYPE_F16, 129, 2, 3, 1, 1, 3, 2,
             1.0e-3f, "mul_mat_vec_f16_batched");
+        run_mul_mat_vec_batched_case(
+            backend.get(), dev, GGML_TYPE_F16, 256, 256, 1, 16, 1, 16, 1,
+            2.0e-2f, "mul_mat_vec_f16_batched_rows2_cols1_x8_decode");
         run_mul_mat_vec_case(
             backend.get(), dev, GGML_TYPE_Q4_K, ggml_blck_size(GGML_TYPE_Q4_K), 3, 1,
             4.0e-4f, "mul_mat_vec_q4_k_one_block");
@@ -4211,6 +4214,13 @@ int main() {
             scoped_env_var topk_variant("GGML_HRX_TOPK_MOE_VARIANT", "wave32");
             scoped_env_var disable_argsort("GGML_HRX_DISABLE_ARGSORT", "1");
             run_topk_moe_case(backend.get(), 256, 1, 32, true, "topk_moe_wave32_norm");
+        }
+        {
+            scoped_env_var disable_argsort("GGML_HRX_DISABLE_ARGSORT", "1");
+            run_topk_moe_case(backend.get(), 32, 1, 8, true, "topk_moe_n32_top8_norm");
+            run_topk_moe_case(backend.get(), 64, 1, 8, true, "topk_moe_n64_top8_norm");
+            run_topk_moe_case(backend.get(), 128, 1, 8, true, "topk_moe_n128_top8_norm");
+            run_topk_moe_case(backend.get(), 256, 1, 8, true, "topk_moe_n256_top8_norm");
         }
         run_rope_imrope_case(backend.get(), 12, 2, 3);
         run_rope_imrope_case(backend.get(), 128, 4, 2);

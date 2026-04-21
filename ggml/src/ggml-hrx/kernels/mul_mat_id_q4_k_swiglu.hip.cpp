@@ -61,6 +61,20 @@ static __device__ __forceinline__ float hrx_q4_k_swiglu_q_from_pack(unsigned lon
     return high ? static_cast<float>(byte >> 4) : static_cast<float>(byte & 0x0Fu);
 }
 
+static __device__ __forceinline__ float hrx_q4_k_swiglu_sum_float4(float4 v) {
+    return (v.x + v.y) + (v.z + v.w);
+}
+
+static __device__ __forceinline__ float hrx_q4_k_swiglu_dot4_from_pack(
+        unsigned long long pack,
+        bool high,
+        float4 y) {
+    return hrx_q4_k_swiglu_q_from_pack<0>(pack, high) * y.x +
+           hrx_q4_k_swiglu_q_from_pack<1>(pack, high) * y.y +
+           hrx_q4_k_swiglu_q_from_pack<2>(pack, high) * y.z +
+           hrx_q4_k_swiglu_q_from_pack<3>(pack, high) * y.w;
+}
+
 template <int WG_SIZE>
 static __device__ __forceinline__ float hrx_reduce_wg_swiglu(float sum, float * shared) {
     const unsigned int tid = __builtin_amdgcn_workitem_id_x();
@@ -255,20 +269,13 @@ static __device__ __forceinline__ void hrx_mul_mat_id_q4_k_swiglu_f32_impl(
         const long long src_base = block_idx * 256 + group * 32 + lane;
         const int qs_base = (group >> 1) * 32 + lane;
 
-        #pragma unroll
-        for (int j = 0; j < 4; ++j) {
-            const uint8_t gate_packed = gate_block->qs[qs_base + j];
-            const uint8_t up_packed = up_block->qs[qs_base + j];
-            const float gate_q = (group & 1) ?
-                static_cast<float>(gate_packed >> 4) :
-                static_cast<float>(gate_packed & 0x0F);
-            const float up_q = (group & 1) ?
-                static_cast<float>(up_packed >> 4) :
-                static_cast<float>(up_packed & 0x0F);
-            const float b = *reinterpret_cast<const float *>(src1_col + (src_base + j) * sizeof(float));
-            gate_sum += (gate_d * gate_q - gate_min) * b;
-            up_sum += (up_d * up_q - up_min) * b;
-        }
+        const uint32_t gate_packed_qs = *reinterpret_cast<const uint32_t *>(gate_block->qs + qs_base);
+        const uint32_t up_packed_qs = *reinterpret_cast<const uint32_t *>(up_block->qs + qs_base);
+        const float4 b4 = *reinterpret_cast<const float4 *>(src1_col + src_base * sizeof(float));
+        const float ysum = hrx_q4_k_swiglu_sum_float4(b4);
+        const bool high = (group & 1) != 0;
+        gate_sum += gate_d * hrx_q4_k_swiglu_dot4_from_pack(gate_packed_qs, high, b4) - gate_min * ysum;
+        up_sum += up_d * hrx_q4_k_swiglu_dot4_from_pack(up_packed_qs, high, b4) - up_min * ysum;
     }
 
     gate_sum = hrx_reduce_wg_swiglu<WG_SIZE>(gate_sum, gate_sumsh);
@@ -390,30 +397,17 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_swiglu_row2_wg64_f32(
         const long long src_base = block_idx * 256 + group * 32 + lane;
         const int qs_base = (group >> 1) * 32 + lane;
 
-        #pragma unroll
-        for (int j = 0; j < 4; ++j) {
-            const float b = *reinterpret_cast<const float *>(src1_col + (src_base + j) * sizeof(float));
-            const uint8_t gate_packed0 = gate_block0->qs[qs_base + j];
-            const uint8_t gate_packed1 = gate_block1->qs[qs_base + j];
-            const uint8_t up_packed0 = up_block0->qs[qs_base + j];
-            const uint8_t up_packed1 = up_block1->qs[qs_base + j];
-            const float gate_q0 = (group & 1) ?
-                static_cast<float>(gate_packed0 >> 4) :
-                static_cast<float>(gate_packed0 & 0x0F);
-            const float gate_q1 = (group & 1) ?
-                static_cast<float>(gate_packed1 >> 4) :
-                static_cast<float>(gate_packed1 & 0x0F);
-            const float up_q0 = (group & 1) ?
-                static_cast<float>(up_packed0 >> 4) :
-                static_cast<float>(up_packed0 & 0x0F);
-            const float up_q1 = (group & 1) ?
-                static_cast<float>(up_packed1 >> 4) :
-                static_cast<float>(up_packed1 & 0x0F);
-            gate_sum0 += (gate_d0 * gate_q0 - gate_min0) * b;
-            gate_sum1 += (gate_d1 * gate_q1 - gate_min1) * b;
-            up_sum0 += (up_d0 * up_q0 - up_min0) * b;
-            up_sum1 += (up_d1 * up_q1 - up_min1) * b;
-        }
+        const uint32_t gate_packed_qs0 = *reinterpret_cast<const uint32_t *>(gate_block0->qs + qs_base);
+        const uint32_t gate_packed_qs1 = *reinterpret_cast<const uint32_t *>(gate_block1->qs + qs_base);
+        const uint32_t up_packed_qs0 = *reinterpret_cast<const uint32_t *>(up_block0->qs + qs_base);
+        const uint32_t up_packed_qs1 = *reinterpret_cast<const uint32_t *>(up_block1->qs + qs_base);
+        const float4 b4 = *reinterpret_cast<const float4 *>(src1_col + src_base * sizeof(float));
+        const float ysum = hrx_q4_k_swiglu_sum_float4(b4);
+        const bool high = (group & 1) != 0;
+        gate_sum0 += gate_d0 * hrx_q4_k_swiglu_dot4_from_pack(gate_packed_qs0, high, b4) - gate_min0 * ysum;
+        gate_sum1 += gate_d1 * hrx_q4_k_swiglu_dot4_from_pack(gate_packed_qs1, high, b4) - gate_min1 * ysum;
+        up_sum0 += up_d0 * hrx_q4_k_swiglu_dot4_from_pack(up_packed_qs0, high, b4) - up_min0 * ysum;
+        up_sum1 += up_d1 * hrx_q4_k_swiglu_dot4_from_pack(up_packed_qs1, high, b4) - up_min1 * ysum;
     }
 
     hrx_reduce_wg4_swiglu<64>(gate_sum0, up_sum0, gate_sum1, up_sum1, sumsh);
@@ -541,24 +535,27 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_swiglu_row4_wg64_f32(
         const long long src_base = block_idx * 256 + group * 32 + lane;
         const int qs_base = (group >> 1) * 32 + lane;
 
-        #pragma unroll
-        for (int j = 0; j < 4; ++j) {
-            const float b = *reinterpret_cast<const float *>(src1_col + (src_base + j) * sizeof(float));
+        const float4 b4 = *reinterpret_cast<const float4 *>(src1_col + src_base * sizeof(float));
+        const float ysum = hrx_q4_k_swiglu_sum_float4(b4);
+        const bool high = (group & 1) != 0;
+        const uint32_t gate_packed_qs0 = *reinterpret_cast<const uint32_t *>(gate_block0->qs + qs_base);
+        const uint32_t gate_packed_qs1 = *reinterpret_cast<const uint32_t *>(gate_block1->qs + qs_base);
+        const uint32_t gate_packed_qs2 = *reinterpret_cast<const uint32_t *>(gate_block2->qs + qs_base);
+        const uint32_t gate_packed_qs3 = *reinterpret_cast<const uint32_t *>(gate_block3->qs + qs_base);
+        const uint32_t up_packed_qs0 = *reinterpret_cast<const uint32_t *>(up_block0->qs + qs_base);
+        const uint32_t up_packed_qs1 = *reinterpret_cast<const uint32_t *>(up_block1->qs + qs_base);
+        const uint32_t up_packed_qs2 = *reinterpret_cast<const uint32_t *>(up_block2->qs + qs_base);
+        const uint32_t up_packed_qs3 = *reinterpret_cast<const uint32_t *>(up_block3->qs + qs_base);
 #define HRX_Q4K_SWIGLU_ROW4_ACC(N) \
-            do { \
-                const uint8_t gate_packed = gate_block##N->qs[qs_base + j]; \
-                const uint8_t up_packed = up_block##N->qs[qs_base + j]; \
-                const float gate_q = (group & 1) ? static_cast<float>(gate_packed >> 4) : static_cast<float>(gate_packed & 0x0F); \
-                const float up_q = (group & 1) ? static_cast<float>(up_packed >> 4) : static_cast<float>(up_packed & 0x0F); \
-                gate_sum##N += (gate_d##N * gate_q - gate_min##N) * b; \
-                up_sum##N += (up_d##N * up_q - up_min##N) * b; \
-            } while (0)
-            HRX_Q4K_SWIGLU_ROW4_ACC(0);
-            HRX_Q4K_SWIGLU_ROW4_ACC(1);
-            HRX_Q4K_SWIGLU_ROW4_ACC(2);
-            HRX_Q4K_SWIGLU_ROW4_ACC(3);
+        do { \
+            gate_sum##N += gate_d##N * hrx_q4_k_swiglu_dot4_from_pack(gate_packed_qs##N, high, b4) - gate_min##N * ysum; \
+            up_sum##N += up_d##N * hrx_q4_k_swiglu_dot4_from_pack(up_packed_qs##N, high, b4) - up_min##N * ysum; \
+        } while (0)
+        HRX_Q4K_SWIGLU_ROW4_ACC(0);
+        HRX_Q4K_SWIGLU_ROW4_ACC(1);
+        HRX_Q4K_SWIGLU_ROW4_ACC(2);
+        HRX_Q4K_SWIGLU_ROW4_ACC(3);
 #undef HRX_Q4K_SWIGLU_ROW4_ACC
-        }
     }
 
     hrx_reduce_wg8_swiglu<64>(
@@ -878,29 +875,47 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_swiglu_grouped_row2_route4_wg64_f
             const long long src_base = block_idx * 256 + group * 32 + lane;
             const int qs_base = (group >> 1) * 32 + lane;
 
-            #pragma unroll
-            for (int j = 0; j < 4; ++j) {
-                const float ba = *reinterpret_cast<const float *>(src1_a + (src_base + j) * sizeof(float));
-                const float bb = has_b ? *reinterpret_cast<const float *>(src1_b + (src_base + j) * sizeof(float)) : 0.0f;
-                const float bc = has_c ? *reinterpret_cast<const float *>(src1_c + (src_base + j) * sizeof(float)) : 0.0f;
-                const float bd = has_d ? *reinterpret_cast<const float *>(src1_d + (src_base + j) * sizeof(float)) : 0.0f;
-#define HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(N) \
-                do { \
-                    const uint8_t gate_packed = gate_block##N->qs[qs_base + j]; \
-                    const uint8_t up_packed = up_block##N->qs[qs_base + j]; \
-                    const float gate_q = (group & 1) ? static_cast<float>(gate_packed >> 4) : static_cast<float>(gate_packed & 0x0F); \
-                    const float up_q = (group & 1) ? static_cast<float>(up_packed >> 4) : static_cast<float>(up_packed & 0x0F); \
-                    const float gate_val = gate_d##N * gate_q - gate_min##N; \
-                    const float up_val = up_d##N * up_q - up_min##N; \
-                    gate_sum##N##a += gate_val * ba; up_sum##N##a += up_val * ba; \
-                    gate_sum##N##b += gate_val * bb; up_sum##N##b += up_val * bb; \
-                    gate_sum##N##c += gate_val * bc; up_sum##N##c += up_val * bc; \
-                    gate_sum##N##d += gate_val * bd; up_sum##N##d += up_val * bd; \
-                } while (0)
-                HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(0);
-                HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(1);
-#undef HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC
+            const uint32_t gate_packed_qs0 = *reinterpret_cast<const uint32_t *>(gate_block0->qs + qs_base);
+            const uint32_t gate_packed_qs1 = *reinterpret_cast<const uint32_t *>(gate_block1->qs + qs_base);
+            const uint32_t up_packed_qs0 = *reinterpret_cast<const uint32_t *>(up_block0->qs + qs_base);
+            const uint32_t up_packed_qs1 = *reinterpret_cast<const uint32_t *>(up_block1->qs + qs_base);
+
+#define HRX_Q4K_SWIGLU_ROW2_ROUTE4_LOAD4(S, HAS) \
+            float4 b4_##S; \
+            if (HAS) { \
+                b4_##S = *reinterpret_cast<const float4 *>(src1_##S + src_base * sizeof(float)); \
+            } else { \
+                b4_##S = { 0.0f, 0.0f, 0.0f, 0.0f }; \
             }
+            HRX_Q4K_SWIGLU_ROW2_ROUTE4_LOAD4(a, true);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE4_LOAD4(b, has_b);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE4_LOAD4(c, has_c);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE4_LOAD4(d, has_d);
+#undef HRX_Q4K_SWIGLU_ROW2_ROUTE4_LOAD4
+
+            const bool high = (group & 1) != 0;
+#define HRX_Q4K_SWIGLU_ROW2_ROUTE4_YSUM(S) \
+            const float ysum_##S = hrx_q4_k_swiglu_sum_float4(b4_##S)
+            HRX_Q4K_SWIGLU_ROW2_ROUTE4_YSUM(a);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE4_YSUM(b);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE4_YSUM(c);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE4_YSUM(d);
+#undef HRX_Q4K_SWIGLU_ROW2_ROUTE4_YSUM
+
+#define HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(N, S) \
+            do { \
+                gate_sum##N##S += gate_d##N * hrx_q4_k_swiglu_dot4_from_pack(gate_packed_qs##N, high, b4_##S) - gate_min##N * ysum_##S; \
+                up_sum##N##S += up_d##N * hrx_q4_k_swiglu_dot4_from_pack(up_packed_qs##N, high, b4_##S) - up_min##N * ysum_##S; \
+            } while (0)
+            HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(0, a);
+            HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(0, b);
+            HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(0, c);
+            HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(0, d);
+            HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(1, a);
+            HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(1, b);
+            HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(1, c);
+            HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC(1, d);
+#undef HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_ACC
         }
 
 #define HRX_Q4K_SWIGLU_GROUPED_ROW2_ROUTE4_STORE(S, ID, TOK) \
@@ -1051,42 +1066,41 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_swiglu_grouped_row2_route8_wg64_f
             HRX_Q4K_SWIGLU_ROW2_ROUTE8_LOAD4(h, has_h);
 #undef HRX_Q4K_SWIGLU_ROW2_ROUTE8_LOAD4
 
-#define HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(N, J) \
-                do { \
-                    const uint8_t gate_packed = static_cast<uint8_t>(gate_packed_qs##N >> ((J) * 8)); \
-                    const uint8_t up_packed = static_cast<uint8_t>(up_packed_qs##N >> ((J) * 8)); \
-                    const float gate_q = (group & 1) ? static_cast<float>(gate_packed >> 4) : static_cast<float>(gate_packed & 0x0F); \
-                    const float up_q = (group & 1) ? static_cast<float>(up_packed >> 4) : static_cast<float>(up_packed & 0x0F); \
-                    const float gate_val = gate_d##N * gate_q - gate_min##N; \
-                    const float up_val = up_d##N * up_q - up_min##N; \
-                    gate_sum##N##a += gate_val * ba; up_sum##N##a += up_val * ba; \
-                    gate_sum##N##b += gate_val * bb; up_sum##N##b += up_val * bb; \
-                    gate_sum##N##c += gate_val * bc; up_sum##N##c += up_val * bc; \
-                    gate_sum##N##d += gate_val * bd; up_sum##N##d += up_val * bd; \
-                    gate_sum##N##e += gate_val * be; up_sum##N##e += up_val * be; \
-                    gate_sum##N##f += gate_val * bf; up_sum##N##f += up_val * bf; \
-                    gate_sum##N##g += gate_val * bg; up_sum##N##g += up_val * bg; \
-                    gate_sum##N##h += gate_val * bh; up_sum##N##h += up_val * bh; \
-                } while (0)
-#define HRX_Q4K_SWIGLU_ROW2_ROUTE8_STEP(J, FIELD) \
+            const bool high = (group & 1) != 0;
+#define HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM(S) \
+            const float ysum_##S = hrx_q4_k_swiglu_sum_float4(b4_##S)
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM(a);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM(b);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM(c);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM(d);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM(e);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM(f);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM(g);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM(h);
+#undef HRX_Q4K_SWIGLU_ROW2_ROUTE8_YSUM
+
+#define HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(N, S) \
             do { \
-                const float ba = b4_a.FIELD; \
-                const float bb = b4_b.FIELD; \
-                const float bc = b4_c.FIELD; \
-                const float bd = b4_d.FIELD; \
-                const float be = b4_e.FIELD; \
-                const float bf = b4_f.FIELD; \
-                const float bg = b4_g.FIELD; \
-                const float bh = b4_h.FIELD; \
-                HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(0, J); \
-                HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(1, J); \
+                gate_sum##N##S += gate_d##N * hrx_q4_k_swiglu_dot4_from_pack(gate_packed_qs##N, high, b4_##S) - gate_min##N * ysum_##S; \
+                up_sum##N##S += up_d##N * hrx_q4_k_swiglu_dot4_from_pack(up_packed_qs##N, high, b4_##S) - up_min##N * ysum_##S; \
             } while (0)
-            HRX_Q4K_SWIGLU_ROW2_ROUTE8_STEP(0, x);
-            HRX_Q4K_SWIGLU_ROW2_ROUTE8_STEP(1, y);
-            HRX_Q4K_SWIGLU_ROW2_ROUTE8_STEP(2, z);
-            HRX_Q4K_SWIGLU_ROW2_ROUTE8_STEP(3, w);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(0, a);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(0, b);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(0, c);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(0, d);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(0, e);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(0, f);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(0, g);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(0, h);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(1, a);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(1, b);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(1, c);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(1, d);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(1, e);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(1, f);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(1, g);
+            HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC(1, h);
 #undef HRX_Q4K_SWIGLU_ROW2_ROUTE8_ACC
-#undef HRX_Q4K_SWIGLU_ROW2_ROUTE8_STEP
         }
 
         const unsigned int lane = tid & (warpSize - 1);
@@ -1309,39 +1323,20 @@ static __device__ __forceinline__ void hrx_mul_mat_id_q4_k_swiglu_packed_f32_imp
         const float4 y2 = *reinterpret_cast<const float4 *>(src1_col + (src_base + 128) * sizeof(float));
         const float4 y3 = *reinterpret_cast<const float4 *>(src1_col + (src_base + 160) * sizeof(float));
 
-        gate_sum += (gate_d0 * hrx_q4_k_swiglu_q_from_pack<0>(gate_q01, false) - gate_min0) * y0.x;
-        gate_sum += (gate_d0 * hrx_q4_k_swiglu_q_from_pack<1>(gate_q01, false) - gate_min0) * y0.y;
-        gate_sum += (gate_d0 * hrx_q4_k_swiglu_q_from_pack<2>(gate_q01, false) - gate_min0) * y0.z;
-        gate_sum += (gate_d0 * hrx_q4_k_swiglu_q_from_pack<3>(gate_q01, false) - gate_min0) * y0.w;
-        gate_sum += (gate_d1 * hrx_q4_k_swiglu_q_from_pack<0>(gate_q01, true) - gate_min1) * y1.x;
-        gate_sum += (gate_d1 * hrx_q4_k_swiglu_q_from_pack<1>(gate_q01, true) - gate_min1) * y1.y;
-        gate_sum += (gate_d1 * hrx_q4_k_swiglu_q_from_pack<2>(gate_q01, true) - gate_min1) * y1.z;
-        gate_sum += (gate_d1 * hrx_q4_k_swiglu_q_from_pack<3>(gate_q01, true) - gate_min1) * y1.w;
-        gate_sum += (gate_d2 * hrx_q4_k_swiglu_q_from_pack<0>(gate_q23, false) - gate_min2) * y2.x;
-        gate_sum += (gate_d2 * hrx_q4_k_swiglu_q_from_pack<1>(gate_q23, false) - gate_min2) * y2.y;
-        gate_sum += (gate_d2 * hrx_q4_k_swiglu_q_from_pack<2>(gate_q23, false) - gate_min2) * y2.z;
-        gate_sum += (gate_d2 * hrx_q4_k_swiglu_q_from_pack<3>(gate_q23, false) - gate_min2) * y2.w;
-        gate_sum += (gate_d3 * hrx_q4_k_swiglu_q_from_pack<0>(gate_q23, true) - gate_min3) * y3.x;
-        gate_sum += (gate_d3 * hrx_q4_k_swiglu_q_from_pack<1>(gate_q23, true) - gate_min3) * y3.y;
-        gate_sum += (gate_d3 * hrx_q4_k_swiglu_q_from_pack<2>(gate_q23, true) - gate_min3) * y3.z;
-        gate_sum += (gate_d3 * hrx_q4_k_swiglu_q_from_pack<3>(gate_q23, true) - gate_min3) * y3.w;
+        const float ysum0 = hrx_q4_k_swiglu_sum_float4(y0);
+        const float ysum1 = hrx_q4_k_swiglu_sum_float4(y1);
+        const float ysum2 = hrx_q4_k_swiglu_sum_float4(y2);
+        const float ysum3 = hrx_q4_k_swiglu_sum_float4(y3);
 
-        up_sum += (up_d0 * hrx_q4_k_swiglu_q_from_pack<0>(up_q01, false) - up_min0) * y0.x;
-        up_sum += (up_d0 * hrx_q4_k_swiglu_q_from_pack<1>(up_q01, false) - up_min0) * y0.y;
-        up_sum += (up_d0 * hrx_q4_k_swiglu_q_from_pack<2>(up_q01, false) - up_min0) * y0.z;
-        up_sum += (up_d0 * hrx_q4_k_swiglu_q_from_pack<3>(up_q01, false) - up_min0) * y0.w;
-        up_sum += (up_d1 * hrx_q4_k_swiglu_q_from_pack<0>(up_q01, true) - up_min1) * y1.x;
-        up_sum += (up_d1 * hrx_q4_k_swiglu_q_from_pack<1>(up_q01, true) - up_min1) * y1.y;
-        up_sum += (up_d1 * hrx_q4_k_swiglu_q_from_pack<2>(up_q01, true) - up_min1) * y1.z;
-        up_sum += (up_d1 * hrx_q4_k_swiglu_q_from_pack<3>(up_q01, true) - up_min1) * y1.w;
-        up_sum += (up_d2 * hrx_q4_k_swiglu_q_from_pack<0>(up_q23, false) - up_min2) * y2.x;
-        up_sum += (up_d2 * hrx_q4_k_swiglu_q_from_pack<1>(up_q23, false) - up_min2) * y2.y;
-        up_sum += (up_d2 * hrx_q4_k_swiglu_q_from_pack<2>(up_q23, false) - up_min2) * y2.z;
-        up_sum += (up_d2 * hrx_q4_k_swiglu_q_from_pack<3>(up_q23, false) - up_min2) * y2.w;
-        up_sum += (up_d3 * hrx_q4_k_swiglu_q_from_pack<0>(up_q23, true) - up_min3) * y3.x;
-        up_sum += (up_d3 * hrx_q4_k_swiglu_q_from_pack<1>(up_q23, true) - up_min3) * y3.y;
-        up_sum += (up_d3 * hrx_q4_k_swiglu_q_from_pack<2>(up_q23, true) - up_min3) * y3.z;
-        up_sum += (up_d3 * hrx_q4_k_swiglu_q_from_pack<3>(up_q23, true) - up_min3) * y3.w;
+        gate_sum += gate_d0 * hrx_q4_k_swiglu_dot4_from_pack(gate_q01, false, y0) - gate_min0 * ysum0;
+        gate_sum += gate_d1 * hrx_q4_k_swiglu_dot4_from_pack(gate_q01, true, y1) - gate_min1 * ysum1;
+        gate_sum += gate_d2 * hrx_q4_k_swiglu_dot4_from_pack(gate_q23, false, y2) - gate_min2 * ysum2;
+        gate_sum += gate_d3 * hrx_q4_k_swiglu_dot4_from_pack(gate_q23, true, y3) - gate_min3 * ysum3;
+
+        up_sum += up_d0 * hrx_q4_k_swiglu_dot4_from_pack(up_q01, false, y0) - up_min0 * ysum0;
+        up_sum += up_d1 * hrx_q4_k_swiglu_dot4_from_pack(up_q01, true, y1) - up_min1 * ysum1;
+        up_sum += up_d2 * hrx_q4_k_swiglu_dot4_from_pack(up_q23, false, y2) - up_min2 * ysum2;
+        up_sum += up_d3 * hrx_q4_k_swiglu_dot4_from_pack(up_q23, true, y3) - up_min3 * ysum3;
     }
 
     gate_sum = hrx_reduce_wg_swiglu<WG_SIZE>(gate_sum, gate_sumsh);

@@ -213,6 +213,90 @@ extern "C" __global__ void hrx_mul_mat_vec_f16_batched_cols1_f32(
     }
 }
 
+extern "C" __global__ void hrx_mul_mat_vec_f16_batched_rows2_cols1_x8_wg32_f32(
+        const __half * src0, const float * src1, float * dst,
+        hrx_mul_mat_vec_f16_batched_constants c) {
+    const long long row0 = static_cast<long long>(__builtin_amdgcn_workgroup_id_x()) * 2;
+    const long long row1 = row0 + 1;
+    const long long outer = __builtin_amdgcn_workgroup_id_y();
+    const unsigned int tid = __builtin_amdgcn_workitem_id_x();
+    if (row0 >= c.rows) {
+        return;
+    }
+
+    const long long i12 = outer % c.dst_ne2;
+    const long long i13 = outer / c.dst_ne2;
+    if (i13 >= c.dst_ne3) {
+        return;
+    }
+
+    const long long src0_i02 = c.src0_ne2 == c.dst_ne2 ? i12 : i12 / (c.dst_ne2 / c.src0_ne2);
+    const long long src0_i03 = c.src0_ne3 == c.dst_ne3 ? i13 : i13 / (c.dst_ne3 / c.src0_ne3);
+    const char * src0_row0 = reinterpret_cast<const char *>(src0) +
+        row0 * c.src0_nb1 + src0_i02 * c.src0_nb2 + src0_i03 * c.src0_nb3;
+    const char * src0_row1 = reinterpret_cast<const char *>(src0) +
+        row1 * c.src0_nb1 + src0_i02 * c.src0_nb2 + src0_i03 * c.src0_nb3;
+    const char * src1_col = reinterpret_cast<const char *>(src1) + i12 * c.src1_nb2 + i13 * c.src1_nb3;
+
+    const bool have_row1 = row1 < c.rows;
+    float sum0 = 0.0f;
+    float sum1 = 0.0f;
+
+    for (long long i = static_cast<long long>(tid) * 8; i < c.k; i += 256) {
+        const long long byte_i_f32 = i * static_cast<long long>(sizeof(float));
+        const long long byte_i_f16 = i * static_cast<long long>(sizeof(__half));
+        const float4 b0 = *reinterpret_cast<const float4 *>(src1_col + byte_i_f32);
+        const float4 b1 = *reinterpret_cast<const float4 *>(
+            src1_col + byte_i_f32 + 4 * static_cast<long long>(sizeof(float)));
+
+        const __half2 a00 = *reinterpret_cast<const __half2 *>(src0_row0 + byte_i_f16);
+        const __half2 a01 = *reinterpret_cast<const __half2 *>(
+            src0_row0 + byte_i_f16 + 2 * static_cast<long long>(sizeof(__half)));
+        const __half2 a02 = *reinterpret_cast<const __half2 *>(
+            src0_row0 + byte_i_f16 + 4 * static_cast<long long>(sizeof(__half)));
+        const __half2 a03 = *reinterpret_cast<const __half2 *>(
+            src0_row0 + byte_i_f16 + 6 * static_cast<long long>(sizeof(__half)));
+        const float2 a00f = __half22float2(a00);
+        const float2 a01f = __half22float2(a01);
+        const float2 a02f = __half22float2(a02);
+        const float2 a03f = __half22float2(a03);
+        sum0 += a00f.x * b0.x + a00f.y * b0.y + a01f.x * b0.z + a01f.y * b0.w;
+        sum0 += a02f.x * b1.x + a02f.y * b1.y + a03f.x * b1.z + a03f.y * b1.w;
+
+        if (have_row1) {
+            const __half2 a10 = *reinterpret_cast<const __half2 *>(src0_row1 + byte_i_f16);
+            const __half2 a11 = *reinterpret_cast<const __half2 *>(
+                src0_row1 + byte_i_f16 + 2 * static_cast<long long>(sizeof(__half)));
+            const __half2 a12 = *reinterpret_cast<const __half2 *>(
+                src0_row1 + byte_i_f16 + 4 * static_cast<long long>(sizeof(__half)));
+            const __half2 a13 = *reinterpret_cast<const __half2 *>(
+                src0_row1 + byte_i_f16 + 6 * static_cast<long long>(sizeof(__half)));
+            const float2 a10f = __half22float2(a10);
+            const float2 a11f = __half22float2(a11);
+            const float2 a12f = __half22float2(a12);
+            const float2 a13f = __half22float2(a13);
+            sum1 += a10f.x * b0.x + a10f.y * b0.y + a11f.x * b0.z + a11f.y * b0.w;
+            sum1 += a12f.x * b1.x + a12f.y * b1.y + a13f.x * b1.z + a13f.y * b1.w;
+        }
+    }
+
+    for (int offset = 16; offset > 0; offset >>= 1) {
+        sum0 += __shfl_down(sum0, offset, 32);
+        sum1 += __shfl_down(sum1, offset, 32);
+    }
+
+    if (tid == 0) {
+        char * dst_row0 = reinterpret_cast<char *>(dst) +
+            row0 * sizeof(float) + i12 * c.dst_nb2 + i13 * c.dst_nb3;
+        *reinterpret_cast<float *>(dst_row0) = sum0;
+        if (have_row1) {
+            char * dst_row1 = reinterpret_cast<char *>(dst) +
+                row1 * sizeof(float) + i12 * c.dst_nb2 + i13 * c.dst_nb3;
+            *reinterpret_cast<float *>(dst_row1) = sum1;
+        }
+    }
+}
+
 extern "C" __global__ void hrx_mul_mat_vec_f16_batched_cols4_f32(
         const __half * src0, const float * src1, float * dst,
         hrx_mul_mat_vec_f16_batched_constants c) {
