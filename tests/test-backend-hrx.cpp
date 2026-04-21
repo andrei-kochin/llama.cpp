@@ -729,6 +729,54 @@ static void run_add_case(ggml_backend_t backend, int64_t n) {
     expect_eq(actual, expected, "add");
 }
 
+static void run_add_activation_boundary_case(ggml_backend_dev_t dev) {
+    {
+        ggml_context_ptr ctx = make_context();
+        ggml_tensor * lhs = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_F16, 16);
+        ggml_tensor * rhs = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_F16, 16);
+        ggml_tensor * sum = ggml_add(ctx.get(), lhs, rhs);
+        GGML_ASSERT(!ggml_backend_dev_supports_op(dev, sum));
+    }
+
+    {
+        ggml_context_ptr ctx = make_context();
+        ggml_tensor * lhs = ggml_new_tensor_4d(ctx.get(), GGML_TYPE_F32, 257, 3, 2, 1);
+        ggml_tensor * rhs = ggml_new_tensor_4d(ctx.get(), GGML_TYPE_F32, 1, 3, 1, 1);
+        ggml_tensor * sum = ggml_add(ctx.get(), lhs, rhs);
+        GGML_ASSERT(ggml_backend_dev_supports_op(dev, sum));
+    }
+
+    {
+        ggml_context_ptr ctx = make_context();
+        ggml_tensor * lhs = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_F32, 8);
+        ggml_tensor * rhs = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_F32, 2);
+        ggml_tensor * sum = ggml_add(ctx.get(), lhs, rhs);
+        GGML_ASSERT(!ggml_backend_dev_supports_op(dev, sum));
+    }
+
+    {
+        ggml_context_ptr ctx = make_context();
+        ggml_tensor * lhs = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, 4, 4);
+        ggml_tensor * rhs_base = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, 4, 4);
+        ggml_tensor * rhs = ggml_transpose(ctx.get(), rhs_base);
+        GGML_ASSERT(rhs->ne[0] == lhs->ne[0]);
+        GGML_ASSERT(rhs->ne[1] == lhs->ne[1]);
+        GGML_ASSERT(rhs->nb[0] != sizeof(float));
+        ggml_tensor * sum = ggml_add(ctx.get(), lhs, rhs);
+        GGML_ASSERT(!ggml_backend_dev_supports_op(dev, sum));
+    }
+
+    {
+        ggml_context_ptr ctx = make_context();
+        ggml_tensor * lhs_base = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, 4, 8);
+        ggml_tensor * lhs = ggml_view_2d(ctx.get(), lhs_base, 4, 4, 2 * lhs_base->nb[1], 0);
+        ggml_tensor * rhs = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, 4, 4);
+        ggml_tensor * sum = ggml_add(ctx.get(), lhs, rhs);
+        GGML_ASSERT(!ggml_is_contiguous(lhs));
+        GGML_ASSERT(ggml_backend_dev_supports_op(dev, sum));
+    }
+}
+
 static void run_mul_case(ggml_backend_t backend, int64_t n) {
     ggml_context_ptr ctx = make_context();
     ggml_tensor * lhs = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_F32, n);
@@ -3738,6 +3786,7 @@ int main() {
     run_add_case(backend.get(), 256);
     run_add_case(backend.get(), 257);
     run_add_case(backend.get(), 1025);
+    run_add_activation_boundary_case(dev);
     run_mul_case(backend.get(), 1);
     run_mul_case(backend.get(), 255);
     run_mul_case(backend.get(), 256);
