@@ -43,6 +43,12 @@ static __device__ __forceinline__ float hrx_q4_k_mul_q_from_pack(unsigned long l
     return high ? static_cast<float>(byte >> 4) : static_cast<float>(byte & 0x0Fu);
 }
 
+template <int I>
+static __device__ __forceinline__ float hrx_q4_k_mul_q_from_pack32(uint32_t pack, bool high) {
+    const unsigned int byte = (pack >> (8 * I)) & 0xFFu;
+    return high ? static_cast<float>(byte >> 4) : static_cast<float>(byte & 0x0Fu);
+}
+
 static __device__ __forceinline__ float hrx_q4_k_mul_sum_float4(float4 v) {
     return (v.x + v.y) + (v.z + v.w);
 }
@@ -55,6 +61,16 @@ static __device__ __forceinline__ float hrx_q4_k_mul_dot4_from_pack(
            hrx_q4_k_mul_q_from_pack<1>(pack, high) * y.y +
            hrx_q4_k_mul_q_from_pack<2>(pack, high) * y.z +
            hrx_q4_k_mul_q_from_pack<3>(pack, high) * y.w;
+}
+
+static __device__ __forceinline__ float hrx_q4_k_mul_dot4_from_pack32(
+        uint32_t pack,
+        bool high,
+        float4 y) {
+    return hrx_q4_k_mul_q_from_pack32<0>(pack, high) * y.x +
+           hrx_q4_k_mul_q_from_pack32<1>(pack, high) * y.y +
+           hrx_q4_k_mul_q_from_pack32<2>(pack, high) * y.z +
+           hrx_q4_k_mul_q_from_pack32<3>(pack, high) * y.w;
 }
 
 static __device__ __forceinline__ float hrx_q4_k_mul_dot8_from_pack(
@@ -344,11 +360,13 @@ extern "C" __global__ void hrx_mul_mat_id_q4_k_mul_rows2_x16_wg32_f32(
         const int qs_base = (group >> 1) * 32 + group_offset;
 
         const bool high = (group & 1) != 0;
-        const unsigned long long qpack = *reinterpret_cast<const unsigned long long *>(block->qs + qs_base);
+        const uint32_t qpack0 = *reinterpret_cast<const uint32_t *>(block->qs + qs_base);
+        const uint32_t qpack1 = *reinterpret_cast<const uint32_t *>(block->qs + qs_base + 4);
         const float4 b0 = *reinterpret_cast<const float4 *>(src1_col + col * sizeof(float));
         const float4 b1 = *reinterpret_cast<const float4 *>(src1_col + (col + 4) * sizeof(float));
 
-        sum += d * hrx_q4_k_mul_dot8_from_pack(qpack, high, b0, b1) -
+        sum += d * (hrx_q4_k_mul_dot4_from_pack32(qpack0, high, b0) +
+                    hrx_q4_k_mul_dot4_from_pack32(qpack1, high, b1)) -
                min * (hrx_q4_k_mul_sum_float4(b0) + hrx_q4_k_mul_sum_float4(b1));
     }
 

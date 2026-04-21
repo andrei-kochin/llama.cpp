@@ -1107,6 +1107,42 @@ static void run_get_rows_case(ggml_backend_t backend, int64_t rows_to_get) {
     expect_eq(tensor_to_float(out), expected, rows_to_get == 1 ? "get_rows_nr1" : "get_rows");
 }
 
+static void run_scale_get_rows_fusion_case(ggml_backend_t backend) {
+    constexpr int64_t cols = 257;
+    constexpr int64_t rows = 4;
+    constexpr float scale_value = 0.25f;
+    constexpr float bias_value = -0.125f;
+
+    ggml_context_ptr ctx = make_context();
+    ggml_tensor * src = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, cols, rows);
+    ggml_tensor * idx = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_I32, 1);
+    ggml_tensor * scaled = ggml_scale_bias_inplace(ctx.get(), src, scale_value, bias_value);
+    ggml_tensor * out = ggml_get_rows(ctx.get(), scaled, idx);
+
+    ggml_cgraph * graph = ggml_new_graph_custom(ctx.get(), 16, false);
+    ggml_build_forward_expand(graph, out);
+
+    ggml_backend_buffer_ptr buffer(ggml_backend_alloc_ctx_tensors(ctx.get(), backend));
+    GGML_ASSERT(buffer != nullptr);
+
+    std::vector<float> src_data(static_cast<size_t>(cols * rows));
+    for (size_t i = 0; i < src_data.size(); ++i) {
+        src_data[i] = 0.01f * static_cast<float>(static_cast<int>(i % 101) - 50);
+    }
+    const int32_t row_index = 2;
+    ggml_backend_tensor_set(src, src_data.data(), 0, src_data.size() * sizeof(float));
+    ggml_backend_tensor_set(idx, &row_index, 0, sizeof(row_index));
+
+    GGML_ASSERT(ggml_backend_graph_compute(backend, graph) == GGML_STATUS_SUCCESS);
+
+    std::vector<float> expected(static_cast<size_t>(cols));
+    for (int64_t col = 0; col < cols; ++col) {
+        expected[static_cast<size_t>(col)] =
+            src_data[static_cast<size_t>(row_index) * cols + static_cast<size_t>(col)] * scale_value + bias_value;
+    }
+    expect_near(tensor_to_float(out), expected, 1.0e-6f, "scale_get_rows_fusion");
+}
+
 static void run_get_rows_q5_k_case(
         ggml_backend_t backend,
         int64_t ncols,
@@ -1919,6 +1955,42 @@ static void run_sigmoid_mul_add_add_fusion_case(ggml_backend_t backend, ggml_bac
     expect_near(tensor_to_float(dst), expected, 1.0e-5f, "sigmoid_mul_add_add_fusion_output");
 }
 
+static void run_sigmoid_mul_fusion_case(ggml_backend_t backend, ggml_backend_dev_t dev) {
+    constexpr int64_t cols = 257;
+    constexpr int64_t rows = 3;
+
+    ggml_context_ptr ctx = make_context();
+    ggml_tensor * gate = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, cols, rows);
+    ggml_tensor * attn = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, cols, rows);
+    ggml_tensor * sigmoid = ggml_sigmoid(ctx.get(), gate);
+    ggml_tensor * mul = ggml_mul(ctx.get(), attn, sigmoid);
+    GGML_ASSERT(ggml_backend_dev_supports_op(dev, mul));
+
+    ggml_cgraph * graph = ggml_new_graph_custom(ctx.get(), 8, false);
+    ggml_build_forward_expand(graph, mul);
+
+    ggml_backend_buffer_ptr buffer(ggml_backend_alloc_ctx_tensors(ctx.get(), backend));
+    GGML_ASSERT(buffer != nullptr);
+
+    std::vector<float> gate_data(static_cast<size_t>(cols * rows));
+    std::vector<float> attn_data(static_cast<size_t>(cols * rows));
+    std::vector<float> expected(gate_data.size());
+    for (size_t i = 0; i < gate_data.size(); ++i) {
+        gate_data[i] = 0.02f * static_cast<float>(static_cast<int>(i % 37) - 18);
+        attn_data[i] = 0.01f * static_cast<float>(static_cast<int>(i % 53) - 26);
+        expected[i] = attn_data[i] / (1.0f + std::exp(-gate_data[i]));
+    }
+
+    ggml_backend_tensor_set(gate, gate_data.data(), 0, gate_data.size() * sizeof(float));
+    ggml_backend_tensor_set(attn, attn_data.data(), 0, attn_data.size() * sizeof(float));
+
+    scoped_env_var disable_sigmoid("GGML_HRX_DISABLE_SIGMOID", "1");
+    scoped_env_var disable_mul("GGML_HRX_DISABLE_MUL", "1");
+    GGML_ASSERT(ggml_backend_graph_compute(backend, graph) == GGML_STATUS_SUCCESS);
+
+    expect_near(tensor_to_float(mul), expected, 1.0e-5f, "sigmoid_mul_fusion_output");
+}
+
 static void run_sigmoid_mul_strided_fusion_case(ggml_backend_t backend, ggml_backend_dev_t dev) {
     constexpr int64_t cols = 4;
     constexpr int64_t heads = 2;
@@ -1973,6 +2045,57 @@ static void run_sigmoid_mul_strided_fusion_case(ggml_backend_t backend, ggml_bac
         }
     }
     expect_near(tensor_to_float(mul), expected, 1.0e-5f, "sigmoid_mul_strided_fusion_output");
+}
+
+static void run_sigmoid_mul_gate_strided_fusion_case(ggml_backend_t backend, ggml_backend_dev_t dev) {
+    constexpr int64_t cols = 4;
+    constexpr int64_t heads = 2;
+    constexpr int64_t rows = 3;
+
+    ggml_context_ptr ctx = make_context();
+    ggml_tensor * attn = ggml_new_tensor_3d(ctx.get(), GGML_TYPE_F32, cols, heads, rows);
+    ggml_tensor * gate_base = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, cols * 2, heads * rows);
+    ggml_tensor * gate_view = ggml_view_3d(
+        ctx.get(), gate_base, cols, heads, rows, gate_base->nb[1], gate_base->nb[1] * heads, cols * sizeof(float));
+    ggml_tensor * gate_cont = ggml_cont(ctx.get(), gate_view);
+    ggml_tensor * sigmoid = ggml_sigmoid(ctx.get(), gate_cont);
+    ggml_tensor * mul = ggml_mul(ctx.get(), attn, sigmoid);
+    GGML_ASSERT(ggml_backend_dev_supports_op(dev, mul));
+
+    ggml_cgraph * graph = ggml_new_graph_custom(ctx.get(), 16, false);
+    ggml_build_forward_expand(graph, mul);
+
+    ggml_backend_buffer_ptr buffer(ggml_backend_alloc_ctx_tensors(ctx.get(), backend));
+    GGML_ASSERT(buffer != nullptr);
+
+    std::vector<float> attn_data(static_cast<size_t>(cols * heads * rows), 0.0f);
+    for (size_t i = 0; i < attn_data.size(); ++i) {
+        attn_data[i] = static_cast<float>(static_cast<int>(i % 29) - 14) / 11.0f;
+    }
+    std::vector<float> gate_data(static_cast<size_t>(cols * 2 * heads * rows), 0.0f);
+    for (size_t i = 0; i < gate_data.size(); ++i) {
+        gate_data[i] = static_cast<float>(static_cast<int>(i % 23) - 11) / 7.0f;
+    }
+
+    ggml_backend_tensor_set(attn, attn_data.data(), 0, attn_data.size() * sizeof(float));
+    ggml_backend_tensor_set(gate_base, gate_data.data(), 0, gate_data.size() * sizeof(float));
+
+    scoped_env_var disable_sigmoid("GGML_HRX_DISABLE_SIGMOID", "1");
+    scoped_env_var disable_mul("GGML_HRX_DISABLE_MUL", "1");
+    GGML_ASSERT(ggml_backend_graph_compute(backend, graph) == GGML_STATUS_SUCCESS);
+
+    auto sigmoid_ref = [](float x) { return 1.0f / (1.0f + std::exp(-x)); };
+    std::vector<float> expected(static_cast<size_t>(cols * heads * rows), 0.0f);
+    for (int64_t row = 0; row < rows; ++row) {
+        for (int64_t head = 0; head < heads; ++head) {
+            for (int64_t col = 0; col < cols; ++col) {
+                const size_t dst_idx = static_cast<size_t>((row * heads + head) * cols + col);
+                const size_t gate_idx = static_cast<size_t>((row * heads + head) * (cols * 2) + cols + col);
+                expected[dst_idx] = attn_data[dst_idx] * sigmoid_ref(gate_data[gate_idx]);
+            }
+        }
+    }
+    expect_near(tensor_to_float(mul), expected, 1.0e-5f, "sigmoid_mul_gate_strided_fusion_output");
 }
 
 static void run_sigmoid_mul_strided_negative_intervening_op_case(ggml_backend_t backend) {
@@ -2138,6 +2261,115 @@ static void run_gated_delta_net_s128_beta_sigmoid_state_update_fusion_case(
         std::vector<float>(expected.begin() + ATTN_ELEMS, expected.end()),
         1.0e-4f,
         "gated_delta_net_beta_sigmoid_state_update_state");
+}
+
+static void run_gated_delta_net_s128_beta_sigmoid_state_gather_fusion_case(
+        ggml_backend_t backend,
+        ggml_backend_dev_t dev,
+        bool scaled_state) {
+    constexpr int64_t S = 128;
+    constexpr int64_t H = 32;
+    constexpr int64_t Q_HEADS = 16;
+    constexpr int64_t T = 1;
+    constexpr int64_t B = 1;
+    constexpr int64_t ATTN_ELEMS = S * H * T * B;
+    constexpr int64_t STATE_ELEMS = S * S * H * B;
+    constexpr int64_t STATE_ROWS = 3;
+    constexpr int32_t SELECTED_ROW = 2;
+    constexpr float SCALE = 0.5f;
+    constexpr float BIAS = -0.125f;
+
+    ggml_context_ptr ctx = make_context();
+    ggml_tensor * q = ggml_new_tensor_4d(ctx.get(), GGML_TYPE_F32, S, Q_HEADS, T, B);
+    ggml_tensor * k = ggml_new_tensor_4d(ctx.get(), GGML_TYPE_F32, S, Q_HEADS, T, B);
+    ggml_tensor * v = ggml_new_tensor_4d(ctx.get(), GGML_TYPE_F32, S, H, T, B);
+    ggml_tensor * g = ggml_new_tensor_4d(ctx.get(), GGML_TYPE_F32, 1, H, T, B);
+    ggml_tensor * beta_raw = ggml_new_tensor_4d(ctx.get(), GGML_TYPE_F32, 1, H, T, B);
+    ggml_tensor * beta = ggml_sigmoid(ctx.get(), beta_raw);
+    ggml_tensor * state_base = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, STATE_ELEMS, STATE_ROWS);
+    ggml_tensor * state_idx = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_I32, 1);
+    ggml_tensor * state_src = scaled_state ?
+        ggml_scale_bias_inplace(ctx.get(), state_base, SCALE, BIAS) : state_base;
+    ggml_tensor * state = ggml_get_rows(ctx.get(), state_src, state_idx);
+    ggml_tensor * gdn = ggml_gated_delta_net(ctx.get(), q, k, v, g, beta, state);
+    ggml_tensor * state_view = ggml_view_1d(
+        ctx.get(), gdn, STATE_ELEMS, static_cast<size_t>(ATTN_ELEMS) * sizeof(float));
+    ggml_tensor * state_dst = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_F32, STATE_ELEMS);
+    ggml_tensor * state_update = ggml_cpy(ctx.get(), state_view, state_dst);
+    GGML_ASSERT(ggml_backend_dev_supports_op(dev, gdn));
+
+    ggml_cgraph * graph = ggml_new_graph_custom(ctx.get(), 64, false);
+    ggml_build_forward_expand(graph, state);
+    ggml_build_forward_expand(graph, state_update);
+    ggml_build_forward_expand(graph, gdn);
+
+    ggml_backend_buffer_ptr buffer(ggml_backend_alloc_ctx_tensors(ctx.get(), backend));
+    GGML_ASSERT(buffer != nullptr);
+
+    std::vector<float> q_data(static_cast<size_t>(S * Q_HEADS * T * B));
+    std::vector<float> k_data(q_data.size());
+    std::vector<float> v_data(static_cast<size_t>(S * H * T * B));
+    std::vector<float> g_data(static_cast<size_t>(H * T * B));
+    std::vector<float> beta_data(g_data.size());
+    std::vector<float> state_base_data(static_cast<size_t>(STATE_ELEMS * STATE_ROWS));
+    for (size_t i = 0; i < q_data.size(); ++i) {
+        q_data[i] = 0.04f * static_cast<float>(static_cast<int>(i % 17) - 8);
+        k_data[i] = 0.03f * static_cast<float>(static_cast<int>(i % 7) - 3);
+    }
+    for (size_t i = 0; i < v_data.size(); ++i) {
+        v_data[i] = 0.025f * static_cast<float>(static_cast<int>(i % 13) - 6);
+    }
+    for (size_t i = 0; i < g_data.size(); ++i) {
+        g_data[i] = -0.3f + 0.15f * static_cast<float>(i % 5);
+        beta_data[i] = -0.2f + 0.1f * static_cast<float>(i % 7);
+    }
+    for (size_t i = 0; i < state_base_data.size(); ++i) {
+        state_base_data[i] = 0.00625f * static_cast<float>(static_cast<int>(i % 31) - 15);
+    }
+
+    ggml_backend_tensor_set(q, q_data.data(), 0, q_data.size() * sizeof(float));
+    ggml_backend_tensor_set(k, k_data.data(), 0, k_data.size() * sizeof(float));
+    ggml_backend_tensor_set(v, v_data.data(), 0, v_data.size() * sizeof(float));
+    ggml_backend_tensor_set(g, g_data.data(), 0, g_data.size() * sizeof(float));
+    ggml_backend_tensor_set(beta_raw, beta_data.data(), 0, beta_data.size() * sizeof(float));
+    ggml_backend_tensor_set(state_base, state_base_data.data(), 0, state_base_data.size() * sizeof(float));
+    ggml_backend_tensor_set(state_idx, &SELECTED_ROW, 0, sizeof(SELECTED_ROW));
+
+    scoped_env_var expect_provider(
+        "GGML_HRX_EXPECT_GATED_DELTA_NET_PROVIDER",
+        scaled_state ?
+            "hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_f32" :
+            "hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_direct_gather_f32");
+    scoped_env_var disable_sigmoid("GGML_HRX_DISABLE_SIGMOID", "1");
+    scoped_env_var disable_gdn("GGML_HRX_DISABLE_GATED_DELTA_NET", "1");
+    scoped_env_var disable_scale_get_rows("GGML_HRX_DISABLE_SCALE_GET_ROWS_FUSION", "1");
+    GGML_ASSERT(ggml_backend_graph_compute(backend, graph) == GGML_STATUS_SUCCESS);
+
+    std::vector<float> beta_sigmoid_data = beta_data;
+    for (float & value : beta_sigmoid_data) {
+        value = 1.0f / (1.0f + std::exp(-value));
+    }
+    std::vector<float> gathered_state(static_cast<size_t>(STATE_ELEMS));
+    for (size_t i = 0; i < gathered_state.size(); ++i) {
+        gathered_state[i] = state_base_data[static_cast<size_t>(SELECTED_ROW) * static_cast<size_t>(STATE_ELEMS) + i];
+        if (scaled_state) {
+            gathered_state[i] = gathered_state[i] * SCALE + BIAS;
+        }
+    }
+    const std::vector<float> expected =
+        reference_gated_delta_net(q_data, k_data, v_data, g_data, beta_sigmoid_data, gathered_state,
+                                  S, H, Q_HEADS, T, B);
+
+    expect_near(
+        tensor_to_float(gdn),
+        expected,
+        1.0e-4f,
+        scaled_state ? "gated_delta_net_state_gather_scaled_gdn" : "gated_delta_net_state_gather_direct_gdn");
+    expect_near(
+        tensor_to_float(state_update),
+        std::vector<float>(expected.begin() + ATTN_ELEMS, expected.end()),
+        1.0e-4f,
+        scaled_state ? "gated_delta_net_state_gather_scaled_state" : "gated_delta_net_state_gather_direct_state");
 }
 
 static void run_gated_delta_net_state_update_negative_truncated_case(ggml_backend_t backend) {
@@ -2943,6 +3175,8 @@ static void run_bf16_mul_mat_swiglu_fusion_case(ggml_backend_t backend, const ch
 }
 
 static void run_bf16_mul_mat_set_rows_fusion_case(ggml_backend_t backend, const char * label) {
+    scoped_env_var disable_set_rows("GGML_HRX_DISABLE_SET_ROWS", "1");
+
     static constexpr int64_t K = 256;
     static constexpr int64_t ROWS = 2;
     static constexpr int64_t DST_ROWS = 4;
@@ -2987,6 +3221,107 @@ static void run_bf16_mul_mat_set_rows_fusion_case(ggml_backend_t backend, const 
         expected[static_cast<size_t>(row_ids[row])] = ggml_fp16_to_fp32(ggml_fp32_to_fp16(matmul[row]));
     }
     expect_near(tensor_to_float(out), expected, 0.0f, label);
+}
+
+static void run_bf16_mul_mat_vector_set_rows_fusion_case(ggml_backend_t backend, const char * label) {
+    scoped_env_var disable_set_rows("GGML_HRX_DISABLE_SET_ROWS", "1");
+
+    static constexpr int64_t K = 2048;
+    static constexpr int64_t ROWS = 8;
+    static constexpr int64_t DST_ROWS = 3;
+
+    ggml_context_ptr ctx = make_context();
+    ggml_tensor * lhs = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_BF16, K, ROWS);
+    ggml_tensor * rhs = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, K, 1);
+    ggml_tensor * mul_mat = ggml_mul_mat(ctx.get(), lhs, rhs);
+    ggml_tensor * adapter = ggml_reshape_2d(ctx.get(), mul_mat, ROWS, 1);
+    ggml_tensor * dst = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F16, ROWS, DST_ROWS);
+    ggml_tensor * rows = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_I64, 1);
+    ggml_tensor * out = ggml_set_rows(ctx.get(), dst, adapter, rows);
+    ggml_cgraph * graph = ggml_new_graph_custom(ctx.get(), 16, false);
+    ggml_build_forward_expand(graph, out);
+    ggml_backend_buffer_ptr buffer(ggml_backend_alloc_ctx_tensors(ctx.get(), backend));
+    GGML_ASSERT(buffer != nullptr);
+
+    std::vector<float> lhs_f32(static_cast<size_t>(K * ROWS));
+    std::vector<float> rhs_f32(static_cast<size_t>(K));
+    for (size_t i = 0; i < lhs_f32.size(); ++i) {
+        lhs_f32[i] = static_cast<float>(static_cast<int>((i * 13 + 11) % 113) - 56) / 83.0f;
+    }
+    for (size_t i = 0; i < rhs_f32.size(); ++i) {
+        rhs_f32[i] = static_cast<float>(static_cast<int>((i * 23 + 5) % 127) - 63) / 97.0f;
+    }
+
+    std::vector<float> lhs_reference;
+    std::vector<uint8_t> lhs_storage;
+    prepare_mul_mat_lhs(GGML_TYPE_BF16, K, ROWS, lhs_f32, lhs_reference, lhs_storage);
+    const std::vector<uint8_t> dst_zero(ggml_nbytes(dst), 0);
+    const int64_t row_ids[1] = { 2 };
+
+    ggml_backend_tensor_set(lhs, lhs_storage.data(), 0, lhs_storage.size());
+    ggml_backend_tensor_set(rhs, rhs_f32.data(), 0, rhs_f32.size() * sizeof(float));
+    ggml_backend_tensor_set(dst, dst_zero.data(), 0, dst_zero.size());
+    ggml_backend_tensor_set(rows, row_ids, 0, sizeof(row_ids));
+    GGML_ASSERT(ggml_backend_graph_compute(backend, graph) == GGML_STATUS_SUCCESS);
+
+    std::vector<float> expected(static_cast<size_t>(ROWS * DST_ROWS), 0.0f);
+    const std::vector<float> matmul = reference_mul_mat(lhs_reference, rhs_f32, K, ROWS, 1);
+    for (int64_t row = 0; row < ROWS; ++row) {
+        expected[static_cast<size_t>(row_ids[0] * ROWS + row)] =
+            ggml_fp16_to_fp32(ggml_fp32_to_fp16(matmul[row]));
+    }
+    expect_near(tensor_to_float(out), expected, 1.0e-3f, label);
+}
+
+static void run_q6_k_mul_mat_silu_mul_fusion_case(ggml_backend_t backend, ggml_backend_dev_t dev, const char * label) {
+    static constexpr int64_t K = 256;
+    static constexpr int64_t ROWS = 8;
+
+    ggml_context_ptr ctx = make_context();
+    ggml_tensor * lhs = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_Q6_K, K, ROWS);
+    ggml_tensor * rhs = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, K, 1);
+    ggml_tensor * mul_mat = ggml_mul_mat(ctx.get(), lhs, rhs);
+    ggml_tensor * adapter = ggml_reshape_2d(ctx.get(), mul_mat, 4, ROWS / 4);
+    ggml_tensor * silu = ggml_silu(ctx.get(), adapter);
+    ggml_tensor * scale = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, 4, ROWS / 4);
+    ggml_tensor * out = ggml_mul(ctx.get(), silu, scale);
+    GGML_ASSERT(ggml_backend_dev_supports_op(dev, out));
+
+    ggml_cgraph * graph = ggml_new_graph_custom(ctx.get(), 16, false);
+    ggml_build_forward_expand(graph, out);
+    ggml_backend_buffer_ptr buffer(ggml_backend_alloc_ctx_tensors(ctx.get(), backend));
+    GGML_ASSERT(buffer != nullptr);
+
+    std::vector<float> lhs_f32(static_cast<size_t>(K * ROWS));
+    std::vector<float> rhs_f32(static_cast<size_t>(K));
+    std::vector<float> scale_f32(static_cast<size_t>(ROWS));
+    for (size_t i = 0; i < lhs_f32.size(); ++i) {
+        lhs_f32[i] = static_cast<float>(static_cast<int>((i * 17 + 5) % 101) - 50) / 37.0f;
+    }
+    for (size_t i = 0; i < rhs_f32.size(); ++i) {
+        rhs_f32[i] = static_cast<float>(static_cast<int>((i * 13 + 11) % 89) - 44) / 41.0f;
+    }
+    for (size_t i = 0; i < scale_f32.size(); ++i) {
+        scale_f32[i] = 0.25f + static_cast<float>(i % 7) / 13.0f;
+    }
+
+    std::vector<float> lhs_reference;
+    std::vector<uint8_t> lhs_storage;
+    prepare_mul_mat_lhs(GGML_TYPE_Q6_K, K, ROWS, lhs_f32, lhs_reference, lhs_storage);
+    ggml_backend_tensor_set(lhs, lhs_storage.data(), 0, lhs_storage.size());
+    ggml_backend_tensor_set(rhs, rhs_f32.data(), 0, rhs_f32.size() * sizeof(float));
+    ggml_backend_tensor_set(scale, scale_f32.data(), 0, scale_f32.size() * sizeof(float));
+
+    scoped_env_var disable_silu_mul("GGML_HRX_DISABLE_SILU_MUL_FUSION", "1");
+    scoped_env_var disable_silu("GGML_HRX_DISABLE_SILU", "1");
+    scoped_env_var disable_mul("GGML_HRX_DISABLE_MUL", "1");
+    GGML_ASSERT(ggml_backend_graph_compute(backend, graph) == GGML_STATUS_SUCCESS);
+
+    std::vector<float> expected = reference_mul_mat(lhs_reference, rhs_f32, K, ROWS, 1);
+    for (size_t i = 0; i < expected.size(); ++i) {
+        expected[i] = expected[i] / (1.0f + std::exp(-expected[i])) * scale_f32[i];
+    }
+    expect_near(tensor_to_float(out), expected, 2.0e-3f, label);
 }
 
 static void run_q8_0_mul_mat_add_fusion_case(
@@ -3310,6 +3645,116 @@ static void run_ssm_conv_update_case(
         "ssm_conv_update_fallback_state";
     expect_near(tensor_to_float(out), expected_out, apply_silu ? 2.0e-5f : 2.0e-6f, out_label);
     expect_near(tensor_to_float(state_update), expected_state, 0.0f, state_label);
+}
+
+static void run_ssm_conv_update_gather_case(ggml_backend_t backend, bool apply_silu, bool scaled_state) {
+    ggml_context_ptr ctx = make_context();
+    constexpr int64_t D_CONV = 4;
+    constexpr int64_t STATE_WIDTH = D_CONV - 1;
+    constexpr int64_t D_INNER = 17;
+    constexpr int64_t STATE_ROWS = 5;
+    constexpr int64_t N_TOKENS = 1;
+    constexpr int64_t FLAT_STATE_COLS = STATE_WIDTH * D_INNER;
+    constexpr int32_t SELECTED_ROW = 3;
+    constexpr float SCALE = 0.375f;
+    constexpr float BIAS = -0.0625f;
+
+    ggml_tensor * state_base = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, FLAT_STATE_COLS, STATE_ROWS);
+    ggml_tensor * state_idx = ggml_new_tensor_1d(ctx.get(), GGML_TYPE_I32, 1);
+    ggml_tensor * state_src = scaled_state ?
+        ggml_scale_bias_inplace(ctx.get(), state_base, SCALE, BIAS) : state_base;
+    ggml_tensor * state_row = ggml_get_rows(ctx.get(), state_src, state_idx);
+    ggml_tensor * conv_state = ggml_reshape_2d(ctx.get(), state_row, STATE_WIDTH, D_INNER);
+    ggml_tensor * input = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, N_TOKENS, D_INNER);
+    ggml_tensor * weight = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, D_CONV, D_INNER);
+    ggml_tensor * concat = ggml_concat(ctx.get(), conv_state, input, 0);
+    ggml_tensor * state_view = ggml_view_2d(
+        ctx.get(), concat, STATE_WIDTH, D_INNER, concat->nb[1], static_cast<size_t>(N_TOKENS) * sizeof(float));
+    ggml_tensor * state_dst = ggml_new_tensor_2d(ctx.get(), GGML_TYPE_F32, STATE_WIDTH, D_INNER);
+    ggml_tensor * state_update = ggml_cpy(ctx.get(), state_view, state_dst);
+    ggml_tensor * ssm = ggml_ssm_conv(ctx.get(), concat, weight);
+    ggml_tensor * out = apply_silu ? ggml_silu(ctx.get(), ssm) : ssm;
+
+    ggml_cgraph * graph = ggml_new_graph_custom(ctx.get(), 64, false);
+    ggml_build_forward_expand(graph, state_update);
+    ggml_build_forward_expand(graph, out);
+
+    ggml_backend_buffer_ptr buffer(ggml_backend_alloc_ctx_tensors(ctx.get(), backend));
+    GGML_ASSERT(buffer != nullptr);
+
+    std::vector<float> state_base_data(static_cast<size_t>(FLAT_STATE_COLS * STATE_ROWS));
+    std::vector<float> input_data(static_cast<size_t>(N_TOKENS * D_INNER));
+    std::vector<float> weight_data(static_cast<size_t>(D_CONV * D_INNER));
+    for (size_t i = 0; i < state_base_data.size(); ++i) {
+        state_base_data[i] = static_cast<float>((i * 13) % 41) * 0.025f - 0.5f;
+    }
+    for (size_t i = 0; i < input_data.size(); ++i) {
+        input_data[i] = static_cast<float>((i * 7) % 29) * 0.03125f - 0.375f;
+    }
+    for (size_t i = 0; i < weight_data.size(); ++i) {
+        weight_data[i] = static_cast<float>((i * 11) % 23) * 0.04f - 0.35f;
+    }
+
+    ggml_backend_tensor_set(state_base, state_base_data.data(), 0, state_base_data.size() * sizeof(float));
+    ggml_backend_tensor_set(state_idx, &SELECTED_ROW, 0, sizeof(SELECTED_ROW));
+    ggml_backend_tensor_set(input, input_data.data(), 0, input_data.size() * sizeof(float));
+    ggml_backend_tensor_set(weight, weight_data.data(), 0, weight_data.size() * sizeof(float));
+
+    scoped_env_var expect_provider(
+        "GGML_HRX_EXPECT_SSM_CONV_UPDATE_PROVIDER",
+        scaled_state ?
+            "hrx_ssm_conv_update_gather_decode_f32" :
+            "hrx_ssm_conv_update_gather_decode_direct_f32");
+    scoped_env_var disable_scale_get_rows("GGML_HRX_DISABLE_SCALE_GET_ROWS_FUSION", "1");
+    scoped_env_var disable_concat("GGML_HRX_DISABLE_CONCAT", "1");
+    scoped_env_var disable_ssm_conv("GGML_HRX_DISABLE_SSM_CONV", "1");
+    GGML_ASSERT(ggml_backend_graph_compute(backend, graph) == GGML_STATUS_SUCCESS);
+
+    std::vector<float> gathered_state(static_cast<size_t>(STATE_WIDTH * D_INNER));
+    for (int64_t channel = 0; channel < D_INNER; ++channel) {
+        for (int64_t i = 0; i < STATE_WIDTH; ++i) {
+            const int64_t flat_col = channel * STATE_WIDTH + i;
+            const float raw = state_base_data[static_cast<size_t>(SELECTED_ROW * FLAT_STATE_COLS + flat_col)];
+            gathered_state[static_cast<size_t>(flat_col)] = scaled_state ? raw * SCALE + BIAS : raw;
+        }
+    }
+
+    std::vector<float> expected_out(static_cast<size_t>(D_INNER * N_TOKENS));
+    for (int64_t channel = 0; channel < D_INNER; ++channel) {
+        float sum = 0.0f;
+        for (int64_t i = 0; i < D_CONV; ++i) {
+            const float x = i < STATE_WIDTH ?
+                gathered_state[static_cast<size_t>(channel * STATE_WIDTH + i)] :
+                input_data[static_cast<size_t>(channel * N_TOKENS + i - STATE_WIDTH)];
+            const float w = weight_data[static_cast<size_t>(channel * D_CONV + i)];
+            sum += x * w;
+        }
+        if (apply_silu) {
+            sum = sum / (1.0f + std::exp(-sum));
+        }
+        expected_out[static_cast<size_t>(channel)] = sum;
+    }
+
+    std::vector<float> expected_state(static_cast<size_t>(STATE_WIDTH * D_INNER));
+    for (int64_t channel = 0; channel < D_INNER; ++channel) {
+        for (int64_t i = 0; i < STATE_WIDTH; ++i) {
+            expected_state[static_cast<size_t>(channel * STATE_WIDTH + i)] =
+                i + 1 < STATE_WIDTH ?
+                    gathered_state[static_cast<size_t>(channel * STATE_WIDTH + i + 1)] :
+                    input_data[static_cast<size_t>(channel)];
+        }
+    }
+
+    expect_near(
+        tensor_to_float(out), expected_out, apply_silu ? 2.0e-5f : 2.0e-6f,
+        apply_silu ?
+            (scaled_state ? "ssm_conv_update_gather_scaled_silu_out" : "ssm_conv_update_gather_direct_silu_out") :
+            (scaled_state ? "ssm_conv_update_gather_scaled_out" : "ssm_conv_update_gather_direct_out"));
+    expect_near(
+        tensor_to_float(state_update),
+        expected_state,
+        1.0e-6f,
+        scaled_state ? "ssm_conv_update_gather_scaled_state" : "ssm_conv_update_gather_direct_state");
 }
 
 static void run_ssm_conv_update_negative_state_offset_case(ggml_backend_t backend) {
@@ -3818,6 +4263,7 @@ int main() {
     run_set_rows_case(backend.get(), GGML_TYPE_Q4_0);
     run_get_rows_case(backend.get(), 1);
     run_get_rows_case(backend.get(), 3);
+    run_scale_get_rows_fusion_case(backend.get());
     run_get_rows_q5_k_case(backend.get(), ggml_blck_size(GGML_TYPE_Q5_K), 4, 1, 2);
     run_get_rows_q5_k_case(backend.get(), 2 * ggml_blck_size(GGML_TYPE_Q5_K), 5, 3, 2);
     run_concat_case(backend.get());
@@ -3862,7 +4308,9 @@ int main() {
         run_add_add_fusion_case(backend.get(), dev, 257, 3);
         run_add_softplus_mul_fusion_case(backend.get(), dev);
         run_sigmoid_mul_add_add_fusion_case(backend.get(), dev);
+        run_sigmoid_mul_fusion_case(backend.get(), dev);
         run_sigmoid_mul_strided_fusion_case(backend.get(), dev);
+        run_sigmoid_mul_gate_strided_fusion_case(backend.get(), dev);
         run_sigmoid_mul_strided_negative_intervening_op_case(backend.get());
         run_add8_fusion_case(backend.get(), 1, 1);
         run_add8_fusion_case(backend.get(), 257, 3);
@@ -3876,6 +4324,10 @@ int main() {
         run_ssm_conv_update_case(backend.get(), 4, 33, 17, true);
         run_ssm_conv_update_case(backend.get(), 4, 33, 1, true, false, true);
         run_ssm_conv_update_case(backend.get(), 4, 33, 1, true, true, true);
+        run_ssm_conv_update_gather_case(backend.get(), false, true);
+        run_ssm_conv_update_gather_case(backend.get(), true, true);
+        run_ssm_conv_update_gather_case(backend.get(), false, false);
+        run_ssm_conv_update_gather_case(backend.get(), true, false);
         run_ssm_conv_update_negative_state_offset_case(backend.get());
         run_ssm_conv_update_negative_state_overlap_case(backend.get());
         run_mul_mat_vec_case(backend.get(), dev, GGML_TYPE_F32, 17, 3, 2, 2.0e-4f, "mul_mat_vec_f32");
@@ -4096,6 +4548,8 @@ int main() {
             2.0e-3f, "mul_mat_vec_f32_batched_cols1_k2048");
         run_bf16_mul_mat_swiglu_fusion_case(backend.get(), "mul_mat_vec_bf16_swiglu_fusion");
         run_bf16_mul_mat_set_rows_fusion_case(backend.get(), "mul_mat_vec_bf16_set_rows_fusion");
+        run_bf16_mul_mat_vector_set_rows_fusion_case(backend.get(), "mul_mat_vec_bf16_vector_set_rows_fusion");
+        run_q6_k_mul_mat_silu_mul_fusion_case(backend.get(), dev, "mul_mat_vec_q6_k_silu_mul_fusion");
         run_mul_mat_id_q4_k_case(
             backend.get(), dev, ggml_blck_size(GGML_TYPE_Q4_K), 3, 2, 3, 4, false,
             6.0e-4f, "mul_mat_id_q4_k_wg64");
@@ -4240,6 +4694,8 @@ int main() {
         run_gated_delta_net_case(backend.get(), false);
         run_gated_delta_net_case(backend.get(), true);
         run_gated_delta_net_s128_beta_sigmoid_state_update_fusion_case(backend.get(), dev);
+        run_gated_delta_net_s128_beta_sigmoid_state_gather_fusion_case(backend.get(), dev, true);
+        run_gated_delta_net_s128_beta_sigmoid_state_gather_fusion_case(backend.get(), dev, false);
         run_gated_delta_net_state_update_negative_truncated_case(backend.get());
         run_gated_delta_net_state_update_negative_intervening_op_case(backend.get());
     }

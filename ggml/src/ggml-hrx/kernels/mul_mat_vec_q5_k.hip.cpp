@@ -52,6 +52,78 @@ static __device__ __forceinline__ float hrx_q5_k_dot4(
     return sum;
 }
 
+static __device__ __forceinline__ float hrx_q5_k_dot16(
+        const hrx_block_q5_K * block,
+        const float * src,
+        int itid) {
+    const int il = itid >> 2;
+    const int ir = itid & 3;
+    const int v_im = il >> 1;
+    const int v_in = il & 1;
+    const int lane = 4 * ir + 2 * v_in;
+
+    const uint16_t * scales16 = reinterpret_cast<const uint16_t *>(block->scales);
+    const uint32_t scale0 = scales16[v_im];
+    const uint32_t scale4 = scales16[v_im + 2];
+    const uint32_t scale8_raw = scales16[v_im + 4];
+    const uint32_t scale_0_4_l = (scale4 << 16) | scale0;
+    const uint32_t scale_0_4_h = (scale_0_4_l & 0xC0C0C0C0u) >> 2;
+    const uint32_t scale_0_4_l6 = scale_0_4_l & 0x3F3F3F3Fu;
+    const uint32_t scale8 = (((scale8_raw << 12) | scale8_raw) & 0x0F0F0F0Fu) | scale_0_4_h;
+
+    const uint32_t qs0 = hrx_q5_load_u32_strided16(block->qs, 32 * v_im + lane);
+    const uint32_t qs4 = hrx_q5_load_u32_strided16(block->qs, 32 * v_im + 64 + lane);
+    const uint32_t qh = hrx_q5_load_u32_strided16(block->qh, lane);
+
+    const float2 by0 = *reinterpret_cast<const float2 *>(src + 64 * v_im + lane);
+    const float2 by16 = *reinterpret_cast<const float2 *>(src + 64 * v_im + lane + 16);
+    const float2 by32 = *reinterpret_cast<const float2 *>(src + 64 * v_im + lane + 32);
+    const float2 by48 = *reinterpret_cast<const float2 *>(src + 64 * v_im + lane + 48);
+    const float2 by128 = *reinterpret_cast<const float2 *>(src + 64 * v_im + lane + 128);
+    const float2 by144 = *reinterpret_cast<const float2 *>(src + 64 * v_im + lane + 144);
+    const float2 by160 = *reinterpret_cast<const float2 *>(src + 64 * v_im + lane + 160);
+    const float2 by176 = *reinterpret_cast<const float2 *>(src + 64 * v_im + lane + 176);
+
+    uint32_t qs0_lo = qs0 & 0x0F0F0F0Fu;
+    uint32_t qs0_hi = (qs0 >> 4) & 0x0F0F0F0Fu;
+    uint32_t qs4_lo = qs4 & 0x0F0F0F0Fu;
+    uint32_t qs4_hi = (qs4 >> 4) & 0x0F0F0F0Fu;
+    qs0_lo += ((qh >> (2 * v_im)) & 0x01010101u) << 4;
+    qs0_hi += ((qh >> (2 * v_im)) & 0x02020202u) << 3;
+    qs4_lo += ((qh >> (2 * v_im)) & 0x10101010u);
+    qs4_hi += ((qh >> (2 * v_im)) & 0x20202020u) >> 1;
+
+    const float sx = fmaf(by0.x, static_cast<float>((qs0_lo >> 0) & 0xFFu),
+                     fmaf(by0.y, static_cast<float>((qs0_lo >> 8) & 0xFFu),
+                     fmaf(by16.x, static_cast<float>((qs0_lo >> 16) & 0xFFu),
+                          by16.y * static_cast<float>((qs0_lo >> 24) & 0xFFu))));
+    const float sy = fmaf(by32.x, static_cast<float>((qs0_hi >> 0) & 0xFFu),
+                     fmaf(by32.y, static_cast<float>((qs0_hi >> 8) & 0xFFu),
+                     fmaf(by48.x, static_cast<float>((qs0_hi >> 16) & 0xFFu),
+                          by48.y * static_cast<float>((qs0_hi >> 24) & 0xFFu))));
+    const float sz = fmaf(by128.x, static_cast<float>((qs4_lo >> 0) & 0xFFu),
+                     fmaf(by128.y, static_cast<float>((qs4_lo >> 8) & 0xFFu),
+                     fmaf(by144.x, static_cast<float>((qs4_lo >> 16) & 0xFFu),
+                          by144.y * static_cast<float>((qs4_lo >> 24) & 0xFFu))));
+    const float sw = fmaf(by160.x, static_cast<float>((qs4_hi >> 0) & 0xFFu),
+                     fmaf(by160.y, static_cast<float>((qs4_hi >> 8) & 0xFFu),
+                     fmaf(by176.x, static_cast<float>((qs4_hi >> 16) & 0xFFu),
+                          by176.y * static_cast<float>((qs4_hi >> 24) & 0xFFu))));
+    const float smin =
+        (by0.x + by0.y + by16.x + by16.y) * static_cast<float>((scale_0_4_l6 >> 16) & 0xFFu) +
+        (by32.x + by32.y + by48.x + by48.y) * static_cast<float>((scale_0_4_l6 >> 24) & 0xFFu) +
+        (by128.x + by128.y + by144.x + by144.y) * static_cast<float>((scale8 >> 16) & 0xFFu) +
+        (by160.x + by160.y + by176.x + by176.y) * static_cast<float>((scale8 >> 24) & 0xFFu);
+
+    const float d = __half2float(__ushort_as_half(block->d));
+    const float dmin = __half2float(__ushort_as_half(block->dmin));
+    return fmaf(d, fmaf(sx, static_cast<float>((scale_0_4_l6 >> 0) & 0xFFu),
+                   fmaf(sy, static_cast<float>((scale_0_4_l6 >> 8) & 0xFFu),
+                   fmaf(sz, static_cast<float>((scale8 >> 0) & 0xFFu),
+                            sw * static_cast<float>((scale8 >> 8) & 0xFFu)))),
+                -dmin * smin);
+}
+
 template <int WG_SIZE>
 static __device__ __forceinline__ float hrx_reduce_wg(float sum, float * shared) {
     const unsigned int tid = __builtin_amdgcn_workitem_id_x();
@@ -202,28 +274,14 @@ static __device__ __forceinline__ void hrx_mul_mat_vec_q5_k_f32_impl(
     const float * src1_col = src1 + col * k;
     float sum = 0.0f;
 
-    const int block_lane = tid & 15;
+    const int itid = tid & 15;
     const int block_slot = tid >> 4;
     const int block_stride = WG_SIZE >> 4;
-    const int il = block_lane >> 2;
-    const int ir = block_lane & 3;
-    const int v_im = il >> 1;
-    const int v_in = il & 1;
-    const int lane = 4 * ir + 2 * v_in;
-    const int group0 = 2 * v_im;
-    const int group4 = group0 + 4;
 
     for (long long block_idx = block_slot; block_idx < blocks_per_row; block_idx += block_stride) {
         const hrx_block_q5_K * block = row_blocks + block_idx;
         const float * src_block = src1_col + block_idx * 256;
-        const uint32_t qs0 = hrx_q5_load_u32_strided16(block->qs, (group0 >> 1) * 32 + lane);
-        const uint32_t qs4 = hrx_q5_load_u32_strided16(block->qs, (group4 >> 1) * 32 + lane);
-        const uint32_t qh = hrx_q5_load_u32_strided16(block->qh, lane);
-
-        sum += hrx_q5_k_dot4(block, src_block, group0,     lane, qs0, qh, false);
-        sum += hrx_q5_k_dot4(block, src_block, group0 + 1, lane, qs0, qh, true);
-        sum += hrx_q5_k_dot4(block, src_block, group4,     lane, qs4, qh, false);
-        sum += hrx_q5_k_dot4(block, src_block, group4 + 1, lane, qs4, qh, true);
+        sum += hrx_q5_k_dot16(block, src_block, itid);
     }
 
     sum = hrx_reduce_wg<WG_SIZE>(sum, sumsh);
@@ -249,6 +307,12 @@ extern "C" __global__ void hrx_mul_mat_vec_q5_k_wg64_f32(
         const hrx_block_q5_K * src0, const float * src1, float * dst,
         long long k, long long rows, long long cols) {
     hrx_mul_mat_vec_q5_k_f32_impl<64>(src0, src1, dst, k, rows, cols);
+}
+
+extern "C" __global__ void hrx_mul_mat_vec_q5_k_wg32_f32(
+        const hrx_block_q5_K * src0, const float * src1, float * dst,
+        long long k, long long rows, long long cols) {
+    hrx_mul_mat_vec_q5_k_f32_impl<32>(src0, src1, dst, k, rows, cols);
 }
 
 template <int COLS, int WG_SIZE>

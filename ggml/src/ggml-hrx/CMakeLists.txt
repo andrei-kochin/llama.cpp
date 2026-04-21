@@ -123,6 +123,8 @@ set(GGML_HRX_WAVE32_KERNEL_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/kernels/div_f32_broadcast.hip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/kernels/flash_attn_ext_f32_bf16_decode.hip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/kernels/flash_attn_ext_f32_f16_decode.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/kernels/flash_attn_ext_f32_f16_decode_gqa8_reduce.hip.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/kernels/flash_attn_ext_f32_f16_decode_gqa8_split.hip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/kernels/flash_attn_ext_f32_f16_prefill_tile8.hip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/kernels/flash_attn_ext_f32_f32_decode.hip.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/kernels/flash_attn_ext_f32_q4_0_decode.hip.cpp"
@@ -273,3 +275,104 @@ ggml_add_backend_library(ggml-hrx
 
 target_link_libraries(ggml-hrx PRIVATE hrx::hrx)
 target_include_directories(ggml-hrx PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${GGML_HRX_GENERATED_DIR}")
+
+option(GGML_HRX_BUILD_HIP_BENCHES "Build native HIP microbenchmarks for HRX kernels" ON)
+
+if (GGML_HRX_BUILD_HIP_BENCHES)
+    list(GET GGML_HRX_AMDGPU_TARGET_LIST_CANONICAL 0 GGML_HRX_HIP_BENCH_AMDGPU_TARGET)
+    set(GGML_HRX_HIP_BENCH_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+
+    function(ggml_hrx_add_hip_bench TARGET_NAME SOURCE WAVEFRONT_SIZE)
+        if (NOT WAVEFRONT_SIZE STREQUAL "32" AND NOT WAVEFRONT_SIZE STREQUAL "64")
+            message(FATAL_ERROR "unsupported HRX HIP bench wavefront size: ${WAVEFRONT_SIZE}")
+        endif()
+
+        if (WAVEFRONT_SIZE STREQUAL "32")
+            set(GGML_HRX_HIP_BENCH_WAVE_FLAG -mno-wavefrontsize64)
+        else()
+            set(GGML_HRX_HIP_BENCH_WAVE_FLAG -mwavefrontsize64)
+        endif()
+
+        set(GGML_HRX_HIP_BENCH_OUTPUT "${GGML_HRX_HIP_BENCH_OUTPUT_DIR}/${TARGET_NAME}")
+        add_custom_command(
+            OUTPUT "${GGML_HRX_HIP_BENCH_OUTPUT}"
+            COMMAND "${GGML_HRX_CLANGXX}"
+                -x hip
+                "--offload-arch=${GGML_HRX_HIP_BENCH_AMDGPU_TARGET}"
+                "--hip-path=${GGML_HRX_ROCM_PATH}"
+                -O3
+                -g
+                "${GGML_HRX_HIP_BENCH_WAVE_FLAG}"
+                -I "${CMAKE_CURRENT_SOURCE_DIR}/kernels"
+                "${SOURCE}"
+                -L "${GGML_HRX_ROCM_PATH}/lib"
+                -lamdhip64
+                -o "${GGML_HRX_HIP_BENCH_OUTPUT}"
+            DEPENDS
+                "${SOURCE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/mul_mat_id_q4_k_mul.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/mul_mat_id_q4_k_swiglu.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/mul_mat_vec_bf16.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/mul_mat_vec_f16_batched.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/mul_mat_vec_f32_batched.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/mul_mat_vec_q5_k.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/mul_mat_vec_q6_k.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/mul_mat_vec_q8_0.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/rms_norm_mul_f32.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/add_rms_norm_mul_f32_broadcast.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/topk_moe_f32_common.hip.inc"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/topk_moe_f32_shared.hip.cpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/kernels/topk_moe_f32_wave.inc"
+            VERBATIM
+        )
+        add_custom_target("${TARGET_NAME}" DEPENDS "${GGML_HRX_HIP_BENCH_OUTPUT}")
+    endfunction()
+
+    ggml_hrx_add_hip_bench(
+        hrx-hip-bench-q4-moe
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/hip-bench/q4_moe_bench.hip.cpp"
+        32)
+    ggml_hrx_add_hip_bench(
+        hrx-hip-bench-dense
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/hip-bench/dense_matvec_bench.hip.cpp"
+        32)
+    ggml_hrx_add_hip_bench(
+        hrx-hip-bench-bf16-swiglu
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/hip-bench/bf16_swiglu_bench.hip.cpp"
+        32)
+    ggml_hrx_add_hip_bench(
+        hrx-hip-bench-quant
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/hip-bench/quant_matvec_bench.hip.cpp"
+        32)
+    ggml_hrx_add_hip_bench(
+        hrx-hip-bench-quant-q8
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/hip-bench/quant_q8_1_bench.hip.cpp"
+        32)
+    ggml_hrx_add_hip_bench(
+        hrx-hip-bench-q8-add
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/hip-bench/q8_add_bench.hip.cpp"
+        32)
+    ggml_hrx_add_hip_bench(
+        hrx-hip-bench-norm
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/hip-bench/norm_bench.hip.cpp"
+        32)
+    ggml_hrx_add_hip_bench(
+        hrx-hip-bench-topk-w32
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/hip-bench/topk_moe_bench.hip.cpp"
+        32)
+    ggml_hrx_add_hip_bench(
+        hrx-hip-bench-topk-w64
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/hip-bench/topk_moe_bench.hip.cpp"
+        64)
+    add_custom_target(hrx-hip-bench
+        DEPENDS
+            hrx-hip-bench-q4-moe
+            hrx-hip-bench-dense
+            hrx-hip-bench-bf16-swiglu
+            hrx-hip-bench-quant
+            hrx-hip-bench-quant-q8
+            hrx-hip-bench-q8-add
+            hrx-hip-bench-norm
+            hrx-hip-bench-topk-w32
+            hrx-hip-bench-topk-w64)
+endif()

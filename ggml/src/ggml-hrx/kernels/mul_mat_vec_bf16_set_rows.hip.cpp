@@ -71,3 +71,56 @@ extern "C" __global__ void hrx_mul_mat_vec_bf16_set_rows_f16(
         }
     }
 }
+
+extern "C" __global__ void hrx_mul_mat_vec_bf16_rows4_k2048_cols1_set_rows_f16(
+        const uint16_t * src0, const float * src1, const long long * idxs, __half * dst,
+        hrx_mul_mat_vec_bf16_set_rows_constants c) {
+    const long long row0 = static_cast<long long>(__builtin_amdgcn_workgroup_id_x()) * 4;
+    const unsigned int tid = __builtin_amdgcn_workitem_id_x();
+    (void) c.k;
+
+    const long long dst_row = hrx_load_i64(idxs, 0);
+    if (dst_row < 0 || dst_row >= c.set_rows_ne1) {
+        return;
+    }
+
+    __shared__ float rhs[2048];
+    __shared__ float partial[8];
+    for (unsigned int i = tid; i < 2048; i += 256) {
+        rhs[i] = src1[i];
+    }
+    __syncthreads();
+
+    const unsigned int row_lane = tid >> 6;
+    const unsigned int lane = tid & 63;
+    const long long row = row0 + static_cast<long long>(row_lane);
+    float sum = 0.0f;
+    if (row < c.rows) {
+        const uint16_t * src0_row = src0 + row * 2048;
+#pragma unroll
+        for (int iter = 0; iter < 16; ++iter) {
+            const unsigned int i = lane * 2 + static_cast<unsigned int>(iter) * 128;
+            const uint32_t a = *reinterpret_cast<const uint32_t *>(src0_row + i);
+            const float2 b = *reinterpret_cast<const float2 *>(rhs + i);
+            sum += hrx_bf16_to_f32(static_cast<uint16_t>(a & 0xffffu)) * b.x;
+            sum += hrx_bf16_to_f32(static_cast<uint16_t>(a >> 16)) * b.y;
+        }
+    }
+
+    const unsigned int sublane = lane & 31;
+    const unsigned int subwave = lane >> 5;
+    for (int offset = 16; offset > 0; offset >>= 1) {
+        sum += __shfl_down(sum, offset, 32);
+    }
+
+    if (sublane == 0) {
+        partial[row_lane * 2 + subwave] = sum;
+    }
+    __syncthreads();
+
+    if (lane == 0 && row < c.rows) {
+        *reinterpret_cast<__half *>(
+            reinterpret_cast<char *>(dst) + dst_row * c.dst_nb1 + row * static_cast<long long>(sizeof(__half))) =
+                __float2half(partial[row_lane * 2] + partial[row_lane * 2 + 1]);
+    }
+}

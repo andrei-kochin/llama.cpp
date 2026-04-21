@@ -428,6 +428,26 @@ struct ggml_backend_hrx_get_rows_f32_constants {
 
 static_assert(sizeof(ggml_backend_hrx_get_rows_f32_constants) == 104);
 
+struct ggml_backend_hrx_scale_get_rows_f32_constants {
+    int64_t nc;
+    int64_t nr;
+    int64_t src0_nb1;
+    int64_t src0_nb2;
+    int64_t src0_nb3;
+    int64_t idx_nb0;
+    int64_t idx_nb1;
+    int64_t idx_nb2;
+    int64_t dst_nb1;
+    int64_t dst_nb2;
+    int64_t dst_nb3;
+    int64_t ne10;
+    int64_t ne11;
+    float scale;
+    float bias;
+};
+
+static_assert(sizeof(ggml_backend_hrx_scale_get_rows_f32_constants) == 112);
+
 struct ggml_backend_hrx_mul_mat_vec_constants {
     int64_t k;
     int64_t rows;
@@ -830,6 +850,30 @@ struct ggml_backend_hrx_ssm_conv_update_constants {
 
 static_assert(sizeof(ggml_backend_hrx_ssm_conv_update_constants) == 112);
 
+struct ggml_backend_hrx_ssm_conv_update_gather_constants {
+    int64_t d_conv;
+    int64_t conv_state_width;
+    int64_t d_inner;
+    int64_t n_tokens;
+    int64_t n_seqs;
+    int64_t state_nb0;
+    int64_t state_nb1;
+    int64_t state_nb2;
+    int64_t input_nb0;
+    int64_t input_nb1;
+    int64_t weight_nb1;
+    int64_t dst_nb1;
+    int64_t dst_nb2;
+    int64_t gather_state_flat_offset;
+    int64_t gather_src_nb1;
+    float gather_scale;
+    float gather_bias;
+    int32_t apply_silu;
+    int32_t pad;
+};
+
+static_assert(sizeof(ggml_backend_hrx_ssm_conv_update_gather_constants) == 136);
+
 struct ggml_backend_hrx_gated_delta_net_constants {
     int64_t S_v;
     int64_t H;
@@ -898,6 +942,18 @@ struct ggml_backend_hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_constants {
 
 static_assert(sizeof(ggml_backend_hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_constants) == 16);
 
+struct ggml_backend_hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_gather_constants {
+    int64_t state_dst_offset;
+    int64_t gather_state_flat_offset;
+    int64_t gather_src_nb1;
+    float scale;
+    float gather_scale;
+    float gather_bias;
+    int32_t _pad;
+};
+
+static_assert(sizeof(ggml_backend_hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_gather_constants) == 40);
+
 struct ggml_backend_hrx_sigmoid_mul_strided_constants {
     int64_t ne0;
     int64_t nrows;
@@ -955,6 +1011,7 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider set_rows_q4_0_provider;
     ggml_backend_hrx_op_provider silu_provider;
     ggml_backend_hrx_op_provider sigmoid_provider;
+    ggml_backend_hrx_op_provider sigmoid_mul_provider;
     ggml_backend_hrx_op_provider sigmoid_mul_strided_provider;
     ggml_backend_hrx_op_provider softplus_provider;
     ggml_backend_hrx_op_provider swiglu_provider;
@@ -965,6 +1022,8 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider clamp_provider;
     ggml_backend_hrx_op_provider get_rows_f32_provider;
     ggml_backend_hrx_op_provider get_rows_f32_nr1_provider;
+    ggml_backend_hrx_op_provider get_rows_f32_nr1_x4_provider;
+    ggml_backend_hrx_op_provider scale_get_rows_f32_nr1_x4_provider;
     ggml_backend_hrx_op_provider get_rows_q5_k_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_wg128_provider;
@@ -994,6 +1053,7 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_swiglu_cols3_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_swiglu_rows2_cols1_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_swiglu_rows4_k2048_cols1_provider;
+    ggml_backend_hrx_op_provider mul_mat_vec_bf16_swiglu_rows8_k2048_cols1_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_swiglu_cols4_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_swiglu_cols5_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_swiglu_cols6_provider;
@@ -1003,6 +1063,7 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_swiglu_rows2_cols8_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_swiglu_wmma16_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_bf16_set_rows_f16_provider;
+    ggml_backend_hrx_op_provider mul_mat_vec_bf16_rows4_k2048_cols1_set_rows_f16_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_f16_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_f16_batched_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_f16_batched_cols1_provider;
@@ -1055,6 +1116,7 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider mul_mat_vec_q5_k_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_q5_k_wg128_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_q5_k_wg64_provider;
+    ggml_backend_hrx_op_provider mul_mat_vec_q5_k_wg32_provider;
     std::array<ggml_backend_hrx_op_provider, 7> mul_mat_vec_q5_k_rows2_cols2_8_wg128_providers;
     std::array<ggml_backend_hrx_op_provider, 7> mul_mat_vec_q5_k_rows2_cols2_8_wg64_providers;
     ggml_backend_hrx_op_provider mul_mat_vec_q5_k_q8_1_provider;
@@ -1066,6 +1128,7 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider mul_mat_vec_q6_k_wg128_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_q6_k_wg64_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_q6_k_rows2_cols1_wg32_provider;
+    ggml_backend_hrx_op_provider mul_mat_vec_q6_k_silu_mul_rows2_cols1_wg32_provider;
     std::array<ggml_backend_hrx_op_provider, 7> mul_mat_vec_q6_k_rows2_cols2_8_wg128_providers;
     std::array<ggml_backend_hrx_op_provider, 7> mul_mat_vec_q6_k_rows2_cols2_8_wg64_providers;
     std::array<ggml_backend_hrx_op_provider, 7> mul_mat_vec_q6_k_rows2_cols2_8_wg32_providers;
@@ -1081,6 +1144,8 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider mul_mat_vec_q8_0_add_rows4_cols4_provider;
     ggml_backend_hrx_op_provider mul_mat_vec_q8_0_add_q8_1_x4_mmq128x32_wg256_provider;
     ggml_backend_hrx_op_provider flash_attn_ext_f16_provider;
+    ggml_backend_hrx_op_provider flash_attn_ext_f16_decode_gqa8_split_provider;
+    ggml_backend_hrx_op_provider flash_attn_ext_f16_decode_gqa8_reduce_provider;
     ggml_backend_hrx_op_provider flash_attn_ext_f16_prefill_tile_provider;
     ggml_backend_hrx_op_provider flash_attn_ext_f16_prefill_wmma_provider;
     ggml_backend_hrx_op_provider flash_attn_ext_f16_prefill_direct_provider;
@@ -1107,12 +1172,17 @@ struct ggml_backend_hrx_device_context {
     ggml_backend_hrx_op_provider rope_set_rows_f32_f16_provider;
     ggml_backend_hrx_op_provider ssm_conv_provider;
     ggml_backend_hrx_op_provider ssm_conv_update_provider;
+    ggml_backend_hrx_op_provider ssm_conv_update_gather_provider;
+    ggml_backend_hrx_op_provider ssm_conv_update_gather_decode_provider;
+    ggml_backend_hrx_op_provider ssm_conv_update_gather_decode_direct_provider;
     ggml_backend_hrx_op_provider gated_delta_net_provider;
     ggml_backend_hrx_op_provider gated_delta_net_s128_cluster8_provider;
     ggml_backend_hrx_op_provider gated_delta_net_s128_cluster8_nokda_provider;
     ggml_backend_hrx_op_provider gated_delta_net_s128_cluster8_nokda_nomod_provider;
     ggml_backend_hrx_op_provider gated_delta_net_s128_h32_qk16_tok1_nokda_provider;
     ggml_backend_hrx_op_provider gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_provider;
+    ggml_backend_hrx_op_provider gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_provider;
+    ggml_backend_hrx_op_provider gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_direct_gather_provider;
 };
 
 static void ggml_backend_hrx_unregister_stream(ggml_backend_hrx_device_context * device_context, hrx_stream_t stream);
@@ -1142,6 +1212,7 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->set_rows_q4_0_provider.reset();
     device_context->silu_provider.reset();
     device_context->sigmoid_provider.reset();
+    device_context->sigmoid_mul_provider.reset();
     device_context->sigmoid_mul_strided_provider.reset();
     device_context->softplus_provider.reset();
     device_context->swiglu_provider.reset();
@@ -1152,6 +1223,8 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->clamp_provider.reset();
     device_context->get_rows_f32_provider.reset();
     device_context->get_rows_f32_nr1_provider.reset();
+    device_context->get_rows_f32_nr1_x4_provider.reset();
+    device_context->scale_get_rows_f32_nr1_x4_provider.reset();
     device_context->get_rows_q5_k_provider.reset();
     device_context->mul_mat_vec_bf16_provider.reset();
     device_context->mul_mat_vec_bf16_wg128_provider.reset();
@@ -1181,6 +1254,7 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->mul_mat_vec_bf16_swiglu_cols3_provider.reset();
     device_context->mul_mat_vec_bf16_swiglu_rows2_cols1_provider.reset();
     device_context->mul_mat_vec_bf16_swiglu_rows4_k2048_cols1_provider.reset();
+    device_context->mul_mat_vec_bf16_swiglu_rows8_k2048_cols1_provider.reset();
     device_context->mul_mat_vec_bf16_swiglu_cols4_provider.reset();
     device_context->mul_mat_vec_bf16_swiglu_cols5_provider.reset();
     device_context->mul_mat_vec_bf16_swiglu_cols6_provider.reset();
@@ -1190,6 +1264,7 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->mul_mat_vec_bf16_swiglu_rows2_cols8_provider.reset();
     device_context->mul_mat_vec_bf16_swiglu_wmma16_provider.reset();
     device_context->mul_mat_vec_bf16_set_rows_f16_provider.reset();
+    device_context->mul_mat_vec_bf16_rows4_k2048_cols1_set_rows_f16_provider.reset();
     device_context->mul_mat_vec_f16_provider.reset();
     device_context->mul_mat_vec_f16_batched_provider.reset();
     device_context->mul_mat_vec_f16_batched_cols1_provider.reset();
@@ -1242,6 +1317,7 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->mul_mat_vec_q5_k_provider.reset();
     device_context->mul_mat_vec_q5_k_wg128_provider.reset();
     device_context->mul_mat_vec_q5_k_wg64_provider.reset();
+    device_context->mul_mat_vec_q5_k_wg32_provider.reset();
     for (auto & provider : device_context->mul_mat_vec_q5_k_rows2_cols2_8_wg128_providers) {
         provider.reset();
     }
@@ -1257,6 +1333,7 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->mul_mat_vec_q6_k_wg128_provider.reset();
     device_context->mul_mat_vec_q6_k_wg64_provider.reset();
     device_context->mul_mat_vec_q6_k_rows2_cols1_wg32_provider.reset();
+    device_context->mul_mat_vec_q6_k_silu_mul_rows2_cols1_wg32_provider.reset();
     for (auto & provider : device_context->mul_mat_vec_q6_k_rows2_cols2_8_wg128_providers) {
         provider.reset();
     }
@@ -1278,6 +1355,8 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->mul_mat_vec_q8_0_add_rows4_cols4_provider.reset();
     device_context->mul_mat_vec_q8_0_add_q8_1_x4_mmq128x32_wg256_provider.reset();
     device_context->flash_attn_ext_f16_provider.reset();
+    device_context->flash_attn_ext_f16_decode_gqa8_split_provider.reset();
+    device_context->flash_attn_ext_f16_decode_gqa8_reduce_provider.reset();
     device_context->flash_attn_ext_f16_prefill_tile_provider.reset();
     device_context->flash_attn_ext_f16_prefill_wmma_provider.reset();
     device_context->flash_attn_ext_f16_prefill_direct_provider.reset();
@@ -1304,12 +1383,17 @@ static void ggml_backend_hrx_reset_providers(ggml_backend_hrx_device_context * d
     device_context->rope_set_rows_f32_f16_provider.reset();
     device_context->ssm_conv_provider.reset();
     device_context->ssm_conv_update_provider.reset();
+    device_context->ssm_conv_update_gather_provider.reset();
+    device_context->ssm_conv_update_gather_decode_provider.reset();
+    device_context->ssm_conv_update_gather_decode_direct_provider.reset();
     device_context->gated_delta_net_provider.reset();
     device_context->gated_delta_net_s128_cluster8_provider.reset();
     device_context->gated_delta_net_s128_cluster8_nokda_provider.reset();
     device_context->gated_delta_net_s128_cluster8_nokda_nomod_provider.reset();
     device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_provider.reset();
     device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_provider.reset();
+    device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_provider.reset();
+    device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_direct_gather_provider.reset();
 }
 
 struct ggml_backend_hrx_reg_context {
@@ -1429,6 +1513,16 @@ static bool ggml_backend_hrx_env_enabled(const char * name) {
     return value && value[0] != '\0' && std::strcmp(value, "0") != 0;
 }
 
+static bool ggml_backend_hrx_trace_routes_enabled() {
+    static const bool enabled = ggml_backend_hrx_env_enabled("GGML_HRX_TRACE_ROUTES");
+    return enabled;
+}
+
+static bool ggml_backend_hrx_trace_graph_enabled() {
+    static const bool enabled = ggml_backend_hrx_env_enabled("GGML_HRX_TRACE_GRAPH");
+    return enabled;
+}
+
 static uint64_t ggml_backend_hrx_dispatches_per_submit() {
     return ggml_backend_hrx_u64_from_env("GGML_HRX_DISPATCHES_PER_SUBMIT", GGML_HRX_DEFAULT_DISPATCHES_PER_SUBMIT);
 }
@@ -1470,7 +1564,6 @@ static hrx_status_t ggml_backend_hrx_maybe_submit_batch_after_dispatch(hrx_strea
     }
 
     context->submitted_dispatches++;
-
     const ggml_tensor * node = g_hrx_active_graph_node;
     if (node && node != context->submit_last_node) {
         const uint64_t matmul_bytes = ggml_backend_hrx_node_mul_mat_bytes(node);
@@ -1489,7 +1582,7 @@ static hrx_status_t ggml_backend_hrx_maybe_submit_batch_after_dispatch(hrx_strea
     }
 
     if (ggml_backend_hrx_env_enabled("GGML_HRX_TRACE_SUBMIT_BATCHING")) {
-        GGML_LOG_DEBUG(
+        GGML_LOG_INFO(
             "%s: submit dispatches=%" PRIu64 " mul_mat_bytes=%" PRIu64
             " mul_mat_bytes_per_submit=%" PRIu64 " submit_count=%" PRIu64 "\n",
             __func__,
@@ -2560,6 +2653,11 @@ static bool ggml_backend_hrx_load_sigmoid_provider(ggml_backend_hrx_device_conte
     return ggml_backend_hrx_load_catalog_provider(device_context, "hrx_sigmoid_f32", &device_context->sigmoid_provider);
 }
 
+static bool ggml_backend_hrx_load_sigmoid_mul_provider(ggml_backend_hrx_device_context * device_context) {
+    return ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_sigmoid_mul_f32", &device_context->sigmoid_mul_provider);
+}
+
 static bool ggml_backend_hrx_load_sigmoid_mul_strided_provider(ggml_backend_hrx_device_context * device_context) {
     return ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_sigmoid_mul_f32_strided", &device_context->sigmoid_mul_strided_provider);
@@ -2596,6 +2694,11 @@ static bool ggml_backend_hrx_load_get_rows_f32_provider(ggml_backend_hrx_device_
         device_context, "hrx_get_rows_f32", &device_context->get_rows_f32_provider);
     ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_get_rows_f32_nr1", &device_context->get_rows_f32_nr1_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_get_rows_f32_nr1_x4", &device_context->get_rows_f32_nr1_x4_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_scale_get_rows_f32_nr1_x4",
+        &device_context->scale_get_rows_f32_nr1_x4_provider) || ok;
     return ok;
 }
 
@@ -2677,6 +2780,9 @@ static bool ggml_backend_hrx_load_mul_mat_vec_providers(ggml_backend_hrx_device_
         device_context, "hrx_mul_mat_vec_bf16_swiglu_rows4_k2048_cols1_lds_wg256_f32",
         &device_context->mul_mat_vec_bf16_swiglu_rows4_k2048_cols1_provider) || ok;
     ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_mul_mat_vec_bf16_swiglu_rows8_k2048_cols1_lds_wg256_f32",
+        &device_context->mul_mat_vec_bf16_swiglu_rows8_k2048_cols1_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_mul_mat_vec_bf16_swiglu_cols4_f32",
         &device_context->mul_mat_vec_bf16_swiglu_cols4_provider) || ok;
     ok = ggml_backend_hrx_load_catalog_provider(
@@ -2703,6 +2809,9 @@ static bool ggml_backend_hrx_load_mul_mat_vec_providers(ggml_backend_hrx_device_
     ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_mul_mat_vec_bf16_set_rows_f16",
         &device_context->mul_mat_vec_bf16_set_rows_f16_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_mul_mat_vec_bf16_rows4_k2048_cols1_set_rows_f16",
+        &device_context->mul_mat_vec_bf16_rows4_k2048_cols1_set_rows_f16_provider) || ok;
     ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_mul_mat_vec_f16_f32", &device_context->mul_mat_vec_f16_provider) || ok;
     ok = ggml_backend_hrx_load_catalog_provider(
@@ -2772,6 +2881,9 @@ static bool ggml_backend_hrx_load_mul_mat_vec_providers(ggml_backend_hrx_device_
     ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_mul_mat_vec_q5_k_wg64_f32",
         &device_context->mul_mat_vec_q5_k_wg64_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_mul_mat_vec_q5_k_wg32_f32",
+        &device_context->mul_mat_vec_q5_k_wg32_provider) || ok;
     for (int cols = 2; cols <= 8; ++cols) {
         char name[96];
         std::snprintf(name, sizeof(name), "hrx_mul_mat_vec_q5_k_rows2_cols%d_wg128_f32", cols);
@@ -2808,6 +2920,9 @@ static bool ggml_backend_hrx_load_mul_mat_vec_providers(ggml_backend_hrx_device_
     ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_mul_mat_vec_q6_k_rows2_cols1_wg32_f32",
         &device_context->mul_mat_vec_q6_k_rows2_cols1_wg32_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_mul_mat_vec_q6_k_silu_mul_rows2_cols1_wg32_f32",
+        &device_context->mul_mat_vec_q6_k_silu_mul_rows2_cols1_wg32_provider) || ok;
     for (int cols = 2; cols <= 8; ++cols) {
         char name[96];
         std::snprintf(name, sizeof(name), "hrx_mul_mat_vec_q6_k_rows2_cols%d_wg128_f32", cols);
@@ -2939,6 +3054,12 @@ static bool ggml_backend_hrx_load_flash_attn_ext_providers(ggml_backend_hrx_devi
     bool ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_flash_attn_ext_f32_f16_decode", &device_context->flash_attn_ext_f16_provider);
     ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_flash_attn_ext_f32_f16_decode_gqa8_split",
+        &device_context->flash_attn_ext_f16_decode_gqa8_split_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_flash_attn_ext_f32_f16_decode_gqa8_reduce",
+        &device_context->flash_attn_ext_f16_decode_gqa8_reduce_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_flash_attn_ext_f32_f16_prefill_tile8",
         &device_context->flash_attn_ext_f16_prefill_tile_provider) || ok;
     ok = ggml_backend_hrx_load_catalog_provider(
@@ -3026,8 +3147,18 @@ static bool ggml_backend_hrx_load_ssm_conv_provider(ggml_backend_hrx_device_cont
 }
 
 static bool ggml_backend_hrx_load_ssm_conv_update_provider(ggml_backend_hrx_device_context * device_context) {
-    return ggml_backend_hrx_load_catalog_provider(
+    bool ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_ssm_conv_update_f32", &device_context->ssm_conv_update_provider);
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_ssm_conv_update_gather_f32",
+        &device_context->ssm_conv_update_gather_provider) && ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_ssm_conv_update_gather_decode_f32",
+        &device_context->ssm_conv_update_gather_decode_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_ssm_conv_update_gather_decode_direct_f32",
+        &device_context->ssm_conv_update_gather_decode_direct_provider) || ok;
+    return ok;
 }
 
 static bool ggml_backend_hrx_load_gated_delta_net_provider(ggml_backend_hrx_device_context * device_context) {
@@ -3048,6 +3179,12 @@ static bool ggml_backend_hrx_load_gated_delta_net_provider(ggml_backend_hrx_devi
     ok = ggml_backend_hrx_load_catalog_provider(
         device_context, "hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_f32",
         &device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_f32",
+        &device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_provider) || ok;
+    ok = ggml_backend_hrx_load_catalog_provider(
+        device_context, "hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_direct_gather_f32",
+        &device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_direct_gather_provider) || ok;
     return ok;
 }
 
@@ -3881,6 +4018,100 @@ static bool ggml_backend_hrx_supports_sigmoid_mul_strided(
            ggml_is_contiguous(mul);
 }
 
+static bool ggml_backend_hrx_supports_sigmoid_mul_gate_strided(
+        const ggml_backend_hrx_device_context * device_context,
+        const ggml_tensor * attn,
+        const ggml_tensor * gate_cont,
+        const ggml_tensor * sigmoid,
+        const ggml_tensor * mul) {
+    return !ggml_backend_hrx_approximate_kernels_disabled() &&
+           !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_SIGMOID_MUL_STRIDED_FUSION") &&
+           device_context->sigmoid_mul_strided_provider.kind == ggml_backend_hrx_provider_kind::hsaco &&
+           attn && gate_cont && sigmoid && mul &&
+           gate_cont->op == GGML_OP_CONT &&
+           sigmoid->op == GGML_OP_UNARY &&
+           ggml_get_unary_op(sigmoid) == GGML_UNARY_OP_SIGMOID &&
+           sigmoid->src[0] == gate_cont &&
+           mul->op == GGML_OP_MUL &&
+           ((mul->src[0] == attn && mul->src[1] == sigmoid) ||
+            (mul->src[0] == sigmoid && mul->src[1] == attn)) &&
+           gate_cont->src[0] &&
+           attn->type == GGML_TYPE_F32 &&
+           gate_cont->src[0]->type == GGML_TYPE_F32 &&
+           gate_cont->type == GGML_TYPE_F32 &&
+           sigmoid->type == GGML_TYPE_F32 &&
+           mul->type == GGML_TYPE_F32 &&
+           ggml_nelements(gate_cont->src[0]) == ggml_nelements(gate_cont) &&
+           ggml_are_same_shape(attn, gate_cont) &&
+           ggml_are_same_shape(attn, sigmoid) &&
+           ggml_are_same_shape(attn, mul) &&
+           attn->nb[0] == sizeof(float) &&
+           gate_cont->src[0]->nb[0] == sizeof(float) &&
+           attn->ne[3] == 1 &&
+           gate_cont->src[0]->ne[3] == 1 &&
+           mul->ne[3] == 1 &&
+           ggml_is_contiguous(mul);
+}
+
+static bool ggml_backend_hrx_supports_sigmoid_mul_f32(
+        const ggml_backend_hrx_device_context * device_context,
+        const ggml_tensor * sigmoid,
+        const ggml_tensor * mul,
+        const ggml_tensor ** out_attn,
+        const ggml_tensor ** out_gate) {
+    if (out_attn) {
+        *out_attn = nullptr;
+    }
+    if (out_gate) {
+        *out_gate = nullptr;
+    }
+    if (ggml_backend_hrx_approximate_kernels_disabled() ||
+        ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_SIGMOID_MUL_FUSION") ||
+        device_context->sigmoid_mul_provider.kind != ggml_backend_hrx_provider_kind::hsaco ||
+        !sigmoid ||
+        !mul ||
+        sigmoid->op != GGML_OP_UNARY ||
+        ggml_get_unary_op(sigmoid) != GGML_UNARY_OP_SIGMOID ||
+        mul->op != GGML_OP_MUL ||
+        !sigmoid->src[0]) {
+        return false;
+    }
+
+    const ggml_tensor * gate = sigmoid->src[0];
+    const ggml_tensor * attn = nullptr;
+    if (mul->src[0] == sigmoid) {
+        attn = mul->src[1];
+    } else if (mul->src[1] == sigmoid) {
+        attn = mul->src[0];
+    }
+    if (!attn) {
+        return false;
+    }
+
+    if (attn->type != GGML_TYPE_F32 ||
+        gate->type != GGML_TYPE_F32 ||
+        sigmoid->type != GGML_TYPE_F32 ||
+        mul->type != GGML_TYPE_F32 ||
+        !ggml_are_same_shape(attn, gate) ||
+        !ggml_are_same_shape(attn, sigmoid) ||
+        !ggml_are_same_shape(attn, mul) ||
+        attn->nb[0] != sizeof(float) ||
+        gate->nb[0] != sizeof(float) ||
+        !ggml_is_contiguous(attn) ||
+        !ggml_is_contiguous(gate) ||
+        !ggml_is_contiguous(mul)) {
+        return false;
+    }
+
+    if (out_attn) {
+        *out_attn = attn;
+    }
+    if (out_gate) {
+        *out_gate = gate;
+    }
+    return true;
+}
+
 static bool ggml_backend_hrx_supports_swiglu_f32(
         const ggml_backend_hrx_device_context * device_context,
         const ggml_tensor * op) {
@@ -3929,6 +4160,66 @@ static bool ggml_backend_hrx_supports_silu_mul_f32(
            ggml_is_contiguous(silu->src[0]) &&
            ggml_is_contiguous(other) &&
            ggml_is_contiguous(mul);
+}
+
+static bool ggml_backend_hrx_supports_mul_mat_vec_q6_k_silu_mul(
+        const ggml_backend_hrx_device_context * device_context,
+        const ggml_tensor * mul_mat,
+        const ggml_tensor * silu,
+        const ggml_tensor * mul,
+        const ggml_tensor ** out_mul_src) {
+    if (out_mul_src) {
+        *out_mul_src = nullptr;
+    }
+    if (ggml_backend_hrx_approximate_kernels_disabled() ||
+        ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_Q6_K_SILU_MUL_FUSION") ||
+        device_context->mul_mat_vec_q6_k_silu_mul_rows2_cols1_wg32_provider.kind !=
+            ggml_backend_hrx_provider_kind::hsaco ||
+        !mul_mat ||
+        !silu ||
+        !mul ||
+        mul_mat->op != GGML_OP_MUL_MAT ||
+        silu->op != GGML_OP_UNARY ||
+        ggml_get_unary_op(silu) != GGML_UNARY_OP_SILU ||
+        mul->op != GGML_OP_MUL ||
+        mul_mat->type != GGML_TYPE_F32 ||
+        silu->type != GGML_TYPE_F32 ||
+        mul->type != GGML_TYPE_F32 ||
+        !mul_mat->src[0] ||
+        !mul_mat->src[1] ||
+        mul_mat->src[0]->type != GGML_TYPE_Q6_K ||
+        mul_mat->src[1]->type != GGML_TYPE_F32 ||
+        mul_mat->src[1]->ne[1] != 1 ||
+        mul_mat->src[1]->ne[2] != 1 ||
+        mul_mat->src[1]->ne[3] != 1 ||
+        mul_mat->ne[1] != 1 ||
+        mul_mat->ne[2] != 1 ||
+        mul_mat->ne[3] != 1 ||
+        mul_mat->src[0]->ne[1] < 2 ||
+        mul_mat->src[0]->ne[1] != ggml_nelements(mul_mat) ||
+        ggml_backend_hrx_unwrap_reshape_view_src0(silu->src[0]) != mul_mat ||
+        ggml_nelements(silu) != ggml_nelements(mul_mat) ||
+        ggml_nelements(mul) != ggml_nelements(mul_mat) ||
+        mul->nb[0] != sizeof(float) ||
+        !ggml_is_contiguous(mul)) {
+        return false;
+    }
+
+    const ggml_tensor * other = mul->src[0] == silu ? mul->src[1] :
+        (mul->src[1] == silu ? mul->src[0] : nullptr);
+    if (!other ||
+        other->type != GGML_TYPE_F32 ||
+        !ggml_are_same_shape(other, silu) ||
+        !ggml_are_same_shape(other, mul) ||
+        other->nb[0] != sizeof(float) ||
+        !ggml_is_contiguous(other)) {
+        return false;
+    }
+
+    if (out_mul_src) {
+        *out_mul_src = other;
+    }
+    return true;
 }
 
 static bool ggml_backend_hrx_supports_sum_rows(
@@ -4105,6 +4396,37 @@ static bool ggml_backend_hrx_supports_get_rows_f32(
            op->nb[0] == sizeof(float);
 }
 
+static bool ggml_backend_hrx_supports_scale_get_rows_f32_nr1(
+        const ggml_backend_hrx_context * context,
+        const ggml_tensor * scale,
+        const ggml_tensor * get_rows) {
+    if (ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_SCALE_GET_ROWS_FUSION") ||
+        context->device_context->scale_get_rows_f32_nr1_x4_provider.kind != ggml_backend_hrx_provider_kind::hsaco ||
+        !ggml_backend_hrx_supports_scale(context->device_context, scale) ||
+        !ggml_backend_hrx_supports_get_rows_f32(context->device_context, get_rows) ||
+        !get_rows->src[0] ||
+        get_rows->src[0]->type != GGML_TYPE_F32 ||
+        !get_rows->src[1] ||
+        ggml_nelements(get_rows->src[1]) != 1 ||
+        ggml_nelements(scale) != ggml_nelements(get_rows->src[0])) {
+        return false;
+    }
+
+    hrx_buffer_ref_t scale_src_ref = {};
+    hrx_buffer_ref_t scale_dst_ref = {};
+    hrx_buffer_ref_t get_rows_src_ref = {};
+    if (!ggml_backend_hrx_tensor_buffer_ref(scale->src[0], &scale_src_ref) ||
+        !ggml_backend_hrx_tensor_buffer_ref(scale, &scale_dst_ref) ||
+        !ggml_backend_hrx_tensor_buffer_ref(get_rows->src[0], &get_rows_src_ref)) {
+        return false;
+    }
+
+    return scale_src_ref.buffer == scale_dst_ref.buffer &&
+           scale_src_ref.offset == scale_dst_ref.offset &&
+           scale_dst_ref.buffer == get_rows_src_ref.buffer &&
+           scale_dst_ref.offset == get_rows_src_ref.offset;
+}
+
 static const ggml_backend_hrx_op_provider * ggml_backend_hrx_mul_mat_vec_provider(
         const ggml_backend_hrx_device_context * device_context,
         ggml_type type) {
@@ -4156,6 +4478,9 @@ static int ggml_backend_hrx_mul_mat_vec_k_workgroup_size_from_env(const char * n
     if (std::strcmp(value, "64") == 0) {
         return 64;
     }
+    if (std::strcmp(value, "32") == 0) {
+        return 32;
+    }
     if (std::strcmp(value, "128") == 0) {
         return 128;
     }
@@ -4183,7 +4508,7 @@ static int ggml_backend_hrx_select_mul_mat_vec_k_workgroup_size(
 
     switch (type) {
         case GGML_TYPE_Q5_K:
-            return rows >= 1024 ? 64 : 128;
+            return rows >= 8192 ? 32 : rows >= 1024 ? 64 : 128;
         case GGML_TYPE_Q6_K:
             return 128;
         default:
@@ -4295,6 +4620,11 @@ static const ggml_backend_hrx_op_provider * ggml_backend_hrx_select_mul_mat_vec_
         int64_t k,
         int64_t rows,
         int64_t cols) {
+    if (!ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_BF16_SWIGLU_ROWS8_K2048_COLS1_DECODE") &&
+        cols == 1 && k == 2048 && rows >= 8 &&
+        ggml_backend_hrx_provider_available(device_context->mul_mat_vec_bf16_swiglu_rows8_k2048_cols1_provider)) {
+        return &device_context->mul_mat_vec_bf16_swiglu_rows8_k2048_cols1_provider;
+    }
     if (!ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_BF16_SWIGLU_ROWS4_K2048_COLS1_DECODE") &&
         cols == 1 && k == 2048 && rows >= 4 &&
         ggml_backend_hrx_provider_available(device_context->mul_mat_vec_bf16_swiglu_rows4_k2048_cols1_provider)) {
@@ -4548,12 +4878,16 @@ static const ggml_backend_hrx_op_provider * ggml_backend_hrx_select_mul_mat_vec_
             }
 
             const int workgroup_size = ggml_backend_hrx_select_mul_mat_vec_k_workgroup_size(type, rows);
-            const ggml_backend_hrx_op_provider * provider = workgroup_size == 64 ?
+            const ggml_backend_hrx_op_provider * provider = workgroup_size == 32 ?
+                &device_context->mul_mat_vec_q5_k_wg32_provider :
+                workgroup_size == 64 ?
                 &device_context->mul_mat_vec_q5_k_wg64_provider :
                 workgroup_size == 128 ?
                 &device_context->mul_mat_vec_q5_k_wg128_provider :
                 &device_context->mul_mat_vec_q5_k_provider;
             const bool disabled =
+                (provider == &device_context->mul_mat_vec_q5_k_wg32_provider &&
+                 ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_Q5_K_WG32")) ||
                 (provider == &device_context->mul_mat_vec_q5_k_wg64_provider &&
                  ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_Q5_K_WG64")) ||
                 (provider == &device_context->mul_mat_vec_q5_k_wg128_provider &&
@@ -5063,13 +5397,12 @@ static bool ggml_backend_hrx_supports_mul_mat_vec_bf16_swiglu(
            swiglu->nb[0] == ggml_type_size(swiglu->type);
 }
 
-static bool ggml_backend_hrx_supports_mul_mat_vec_bf16_set_rows_f16(
+static bool ggml_backend_hrx_supports_mul_mat_vec_bf16_set_rows_common(
         const ggml_backend_hrx_device_context * device_context,
         const ggml_tensor * mul_mat,
         const ggml_tensor * adapter,
         const ggml_tensor * set_rows) {
-    return ggml_backend_hrx_provider_available(device_context->mul_mat_vec_bf16_set_rows_f16_provider) &&
-           !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
+    return !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_MUL_MAT_SET_ROWS_FUSION") &&
            mul_mat &&
            adapter &&
@@ -5083,17 +5416,69 @@ static bool ggml_backend_hrx_supports_mul_mat_vec_bf16_set_rows_f16(
            set_rows->src[1]->type == GGML_TYPE_I64 &&
            set_rows->src[2] &&
            set_rows->src[2]->type == GGML_TYPE_F16 &&
+           mul_mat->src[0] &&
+           mul_mat->src[1] &&
            ggml_backend_hrx_supports_mul_mat_vec(device_context, mul_mat) &&
            ggml_backend_hrx_supports_set_rows(device_context, set_rows) &&
            mul_mat->src[0]->type == GGML_TYPE_BF16 &&
+           mul_mat->src[1]->type == GGML_TYPE_F32 &&
            mul_mat->src[1]->ne[1] == 1 &&
-           adapter->ne[0] == 1 &&
-           adapter->ne[1] == mul_mat->ne[0] &&
-           adapter->ne[2] == 1 &&
-           adapter->ne[3] == 1 &&
-           set_rows->ne[0] == 1 &&
-           set_rows->ne[2] == 1 &&
-           set_rows->ne[3] == 1;
+           ggml_nelements(adapter) == ggml_nelements(mul_mat) &&
+           set_rows->ne[0] == adapter->ne[0] &&
+           set_rows->ne[2] == adapter->ne[2] &&
+           set_rows->ne[3] == adapter->ne[3];
+}
+
+static const ggml_backend_hrx_op_provider * ggml_backend_hrx_select_mul_mat_vec_bf16_set_rows_f16_provider(
+        const ggml_backend_hrx_device_context * device_context,
+        const ggml_tensor * mul_mat,
+        const ggml_tensor * adapter,
+        const ggml_tensor * set_rows,
+        uint32_t * rows_per_workgroup) {
+    if (!ggml_backend_hrx_supports_mul_mat_vec_bf16_set_rows_common(
+            device_context, mul_mat, adapter, set_rows)) {
+        return nullptr;
+    }
+
+    if (!ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_BF16_ROWS4_K2048_COLS1_SET_ROWS_DECODE") &&
+        ggml_backend_hrx_provider_available(device_context->mul_mat_vec_bf16_rows4_k2048_cols1_set_rows_f16_provider) &&
+        mul_mat->src[0]->ne[0] == 2048 &&
+        mul_mat->src[0]->ne[1] >= 4 &&
+        adapter->ne[0] == mul_mat->src[0]->ne[1] &&
+        adapter->ne[1] == 1 &&
+        adapter->ne[2] == 1 &&
+        adapter->ne[3] == 1 &&
+        set_rows->src[1]->ne[0] == 1 &&
+        set_rows->src[1]->ne[1] == 1 &&
+        set_rows->src[1]->ne[2] == 1 &&
+        set_rows->src[1]->ne[3] == 1) {
+        *rows_per_workgroup = 4;
+        return &device_context->mul_mat_vec_bf16_rows4_k2048_cols1_set_rows_f16_provider;
+    }
+
+    if (ggml_backend_hrx_provider_available(device_context->mul_mat_vec_bf16_set_rows_f16_provider) &&
+        adapter->ne[0] == 1 &&
+        adapter->ne[1] == mul_mat->ne[0] &&
+        adapter->ne[2] == 1 &&
+        adapter->ne[3] == 1 &&
+        set_rows->ne[0] == 1 &&
+        set_rows->ne[2] == 1 &&
+        set_rows->ne[3] == 1) {
+        *rows_per_workgroup = 1;
+        return &device_context->mul_mat_vec_bf16_set_rows_f16_provider;
+    }
+
+    return nullptr;
+}
+
+static bool ggml_backend_hrx_supports_mul_mat_vec_bf16_set_rows_f16(
+        const ggml_backend_hrx_device_context * device_context,
+        const ggml_tensor * mul_mat,
+        const ggml_tensor * adapter,
+        const ggml_tensor * set_rows) {
+    uint32_t rows_per_workgroup = 0;
+    return ggml_backend_hrx_select_mul_mat_vec_bf16_set_rows_f16_provider(
+        device_context, mul_mat, adapter, set_rows, &rows_per_workgroup) != nullptr;
 }
 
 static const ggml_backend_hrx_op_provider * ggml_backend_hrx_select_mul_mat_id_q4_k_provider(
@@ -5208,11 +5593,11 @@ static const ggml_backend_hrx_op_provider * ggml_backend_hrx_select_mul_mat_id_q
     // W7900/Qwen small-prefill profiling shows the packed route wins through
     // p8; grouped routes are reserved for larger prompts where route compaction
     // amortizes.
-    // Within that packed family, WG32 wins for p2..p8. p1 remains on the
-    // original WG64 split.
+    // Within that packed family, WG32 wins for p1..p8 on the W7900/Qwen decode
+    // shape.
     if (!ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_PACKED_Q4_K_SWIGLU") &&
         !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_PACKED_Q4_K_SWIGLU_WG32") &&
-        k == 2048 && rows == 512 && n_ids == 8 && n_tokens >= 2 && n_tokens <= 8 &&
+        k == 2048 && rows == 512 && n_ids == 8 && n_tokens >= 1 && n_tokens <= 8 &&
         ggml_backend_hrx_provider_available(device_context->mul_mat_id_q4_k_swiglu_packed_wg32_provider)) {
         return &device_context->mul_mat_id_q4_k_swiglu_packed_wg32_provider;
     }
@@ -5516,6 +5901,58 @@ static bool ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_direct(
         "GGML_HRX_DISABLE_F16_PREFILL_FA_DIRECT", true, true);
 }
 
+static bool ggml_backend_hrx_supports_flash_attn_ext_f32_f16_decode_gqa8(
+        const ggml_backend_hrx_device_context * device_context,
+        const ggml_tensor * op) {
+    if (ggml_backend_hrx_approximate_kernels_disabled() ||
+        ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_F16_DECODE_FA_GQA8") ||
+        device_context->flash_attn_ext_f16_decode_gqa8_split_provider.kind != ggml_backend_hrx_provider_kind::hsaco ||
+        device_context->flash_attn_ext_f16_decode_gqa8_reduce_provider.kind != ggml_backend_hrx_provider_kind::hsaco) {
+        return false;
+    }
+
+    const ggml_tensor * q = op->src[0];
+    const ggml_tensor * k = op->src[1];
+    const ggml_tensor * v = op->src[2];
+    const ggml_tensor * mask = op->src[3];
+    const ggml_tensor * sinks = op->src[4];
+    if (!q || !k || !v) {
+        return false;
+    }
+
+    return
+           q->type == GGML_TYPE_F32 &&
+           k->type == GGML_TYPE_F16 &&
+           v->type == GGML_TYPE_F16 &&
+           op->type == GGML_TYPE_F32 &&
+           (!mask || mask->type == GGML_TYPE_F16) &&
+           (!sinks || (sinks->type == GGML_TYPE_F32 && sinks->ne[0] == q->ne[2])) &&
+           q->ne[0] == 256 &&
+           k->ne[0] == 256 &&
+           v->ne[0] == 256 &&
+           op->ne[0] == 256 &&
+           q->ne[1] == 1 &&
+           k->ne[1] > 0 &&
+           k->ne[1] == v->ne[1] &&
+           q->ne[2] > 0 &&
+           k->ne[2] > 0 &&
+           q->ne[2] == op->ne[1] &&
+           q->ne[1] == op->ne[2] &&
+           q->ne[3] == op->ne[3] &&
+           k->ne[2] == v->ne[2] &&
+           q->ne[3] == k->ne[3] &&
+           q->ne[3] == v->ne[3] &&
+           q->ne[2] == 8 * k->ne[2] &&
+           (!mask || (mask->ne[0] >= k->ne[1] && mask->ne[1] >= q->ne[1] &&
+                      mask->ne[2] <= 1 && mask->ne[3] == q->ne[3])) &&
+           q->nb[0] == sizeof(float) &&
+           k->nb[0] == ggml_type_size(k->type) &&
+           v->nb[0] == ggml_type_size(v->type) &&
+           (!mask || mask->nb[0] == ggml_type_size(mask->type)) &&
+           op->nb[0] == sizeof(float) &&
+           ggml_is_contiguous(op);
+}
+
 static bool ggml_backend_hrx_supports_flash_attn_ext_f32_decode(
         const ggml_backend_hrx_device_context * device_context,
         const ggml_tensor * op) {
@@ -5532,7 +5969,8 @@ static bool ggml_backend_hrx_supports_flash_attn_ext_f32_decode(
         return false;
     }
 
-    if (ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_direct(device_context, op) ||
+    if (ggml_backend_hrx_supports_flash_attn_ext_f32_f16_decode_gqa8(device_context, op) ||
+        ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_direct(device_context, op) ||
         ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_wmma(device_context, op) ||
         ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_tile(device_context, op)) {
         return true;
@@ -6748,6 +7186,107 @@ static ggml_status ggml_backend_hrx_dispatch_sigmoid_mul_strided(
     return GGML_STATUS_SUCCESS;
 }
 
+static ggml_status ggml_backend_hrx_dispatch_sigmoid_mul_gate_strided(
+        ggml_backend_hrx_context * context,
+        const ggml_tensor * attn,
+        const ggml_tensor * gate_cont,
+        const ggml_tensor * mul) {
+    const ggml_tensor * gate = gate_cont->src[0];
+    hrx_buffer_ref_t bindings[3] = {};
+    if (!ggml_backend_hrx_tensor_buffer_ref(attn, &bindings[0]) ||
+        !ggml_backend_hrx_tensor_buffer_ref(gate, &bindings[1]) ||
+        !ggml_backend_hrx_tensor_buffer_ref(mul, &bindings[2])) {
+        GGML_LOG_ERROR("%s: SIGMOID_MUL_STRIDED tensor is not backed by a HRX buffer\n", __func__);
+        return GGML_STATUS_FAILED;
+    }
+
+    ggml_backend_hrx_sigmoid_mul_strided_constants constants = {
+        /* .ne0      = */ mul->ne[0],
+        /* .nrows    = */ ggml_nrows(mul),
+        /* .attn_ne0 = */ attn->ne[0],
+        /* .attn_ne1 = */ attn->ne[1],
+        /* .attn_nb1 = */ static_cast<int64_t>(attn->nb[1]),
+        /* .attn_nb2 = */ static_cast<int64_t>(attn->nb[2]),
+        /* .gate_ne0 = */ gate->ne[0],
+        /* .gate_ne1 = */ gate->ne[1],
+        /* .gate_nb1 = */ static_cast<int64_t>(gate->nb[1]),
+        /* .gate_nb2 = */ static_cast<int64_t>(gate->nb[2]),
+    };
+
+    const auto & provider = context->device_context->sigmoid_mul_strided_provider;
+    const int64_t n = constants.ne0 * constants.nrows;
+    const uint32_t workgroup_size = provider.export_info.workgroup_size[0] ?
+        provider.export_info.workgroup_size[0] : 256;
+    hrx_dispatch_config_t config = {
+        /* .workgroup_count = */ {
+            static_cast<uint32_t>((n + workgroup_size - 1) / workgroup_size),
+            1,
+            1,
+        },
+        /* .workgroup_size = */ { workgroup_size, 1, 1 },
+        /* .subgroup_size = */ 0,
+    };
+
+    if (!GGML_HRX_CHECK(hrx_stream_dispatch(
+            context->stream,
+            provider.executable,
+            provider.export_ordinal,
+            &config,
+            &constants,
+            sizeof(constants),
+            bindings,
+            3,
+            HRX_DISPATCH_FLAG_NONE))) {
+        return GGML_STATUS_FAILED;
+    }
+    return GGML_STATUS_SUCCESS;
+}
+
+static ggml_status ggml_backend_hrx_dispatch_sigmoid_mul_f32(
+        ggml_backend_hrx_context * context,
+        const ggml_tensor * attn,
+        const ggml_tensor * gate,
+        const ggml_tensor * mul) {
+    hrx_buffer_ref_t bindings[3] = {};
+    if (!ggml_backend_hrx_tensor_buffer_ref(gate, &bindings[0]) ||
+        !ggml_backend_hrx_tensor_buffer_ref(attn, &bindings[1]) ||
+        !ggml_backend_hrx_tensor_buffer_ref(mul, &bindings[2])) {
+        GGML_LOG_ERROR("%s: SIGMOID_MUL tensor is not backed by a HRX buffer\n", __func__);
+        return GGML_STATUS_FAILED;
+    }
+
+    ggml_backend_hrx_elementwise_constants constants = {
+        /* .n = */ ggml_nelements(mul),
+    };
+
+    const auto & provider = context->device_context->sigmoid_mul_provider;
+    const uint32_t workgroup_size = provider.export_info.workgroup_size[0] ?
+        provider.export_info.workgroup_size[0] : 256;
+    hrx_dispatch_config_t config = {
+        /* .workgroup_count = */ {
+            static_cast<uint32_t>((constants.n + workgroup_size - 1) / workgroup_size),
+            1,
+            1,
+        },
+        /* .workgroup_size = */ { workgroup_size, 1, 1 },
+        /* .subgroup_size = */ 0,
+    };
+
+    if (!GGML_HRX_CHECK(hrx_stream_dispatch(
+            context->stream,
+            provider.executable,
+            provider.export_ordinal,
+            &config,
+            &constants,
+            sizeof(constants),
+            bindings,
+            3,
+            HRX_DISPATCH_FLAG_NONE))) {
+        return GGML_STATUS_FAILED;
+    }
+    return GGML_STATUS_SUCCESS;
+}
+
 static ggml_status ggml_backend_hrx_dispatch_swiglu_f32(
         ggml_backend_hrx_context * context,
         const ggml_tensor * dst) {
@@ -7672,21 +8211,30 @@ static ggml_status ggml_backend_hrx_dispatch_get_rows_f32(
         /* .ne11     = */ src1->ne[1],
     };
 
+    const bool use_nr1_x4 =
+        src0->type == GGML_TYPE_F32 &&
+        constants.nr == 1 &&
+        context->device_context->get_rows_f32_nr1_x4_provider.kind == ggml_backend_hrx_provider_kind::hsaco;
     const bool use_nr1 =
         src0->type == GGML_TYPE_F32 &&
         constants.nr == 1 &&
         context->device_context->get_rows_f32_nr1_provider.kind == ggml_backend_hrx_provider_kind::hsaco;
     const auto & provider = src0->type == GGML_TYPE_Q5_K ?
         context->device_context->get_rows_q5_k_provider :
-        (use_nr1 ?
+        (use_nr1_x4 ?
+            context->device_context->get_rows_f32_nr1_x4_provider :
+        use_nr1 ?
             context->device_context->get_rows_f32_nr1_provider :
             context->device_context->get_rows_f32_provider);
     const uint32_t workgroup_size = provider.export_info.workgroup_size[0] ?
         provider.export_info.workgroup_size[0] : 256;
     hrx_dispatch_config_t config = {
         /* .workgroup_count = */ {
-            static_cast<uint32_t>((constants.nc + workgroup_size - 1) / workgroup_size),
-            static_cast<uint32_t>(use_nr1 ? 1 : constants.nr),
+            static_cast<uint32_t>(
+                use_nr1_x4 ?
+                    (constants.nc + (4 * workgroup_size) - 1) / (4 * workgroup_size) :
+                    (constants.nc + workgroup_size - 1) / workgroup_size),
+            static_cast<uint32_t>((use_nr1_x4 || use_nr1) ? 1 : constants.nr),
             1,
         },
         /* .workgroup_size = */ { workgroup_size, 1, 1 },
@@ -7695,6 +8243,21 @@ static ggml_status ggml_backend_hrx_dispatch_get_rows_f32(
 
     if (!ggml_backend_hrx_validate_get_rows_indices(context, dst)) {
         return GGML_STATUS_FAILED;
+    }
+
+    if (ggml_backend_hrx_trace_routes_enabled()) {
+        std::fprintf(
+            stderr,
+            "HRX route GET_ROWS provider=%s src=%s nc=%" PRId64 " nr=%" PRId64
+            " idx_ne=[%" PRId64 ",%" PRId64 ",%" PRId64 "] dst=%s\n",
+            provider.name.c_str(),
+            ggml_type_name(src0->type),
+            constants.nc,
+            constants.nr,
+            src1->ne[0],
+            src1->ne[1],
+            src1->ne[2],
+            dst->name);
     }
 
     if (!GGML_HRX_CHECK(hrx_stream_dispatch(
@@ -7798,6 +8361,23 @@ static ggml_status ggml_backend_hrx_dispatch_mul_mat_vec_k_q8_1(
         /* .subgroup_size = */ 0,
     };
 
+    if (ggml_backend_hrx_trace_routes_enabled()) {
+        std::fprintf(
+            stderr,
+            "HRX route MUL_MAT q8_1 provider=%s type=%s k=%" PRId64 " rows=%" PRId64
+            " cols=%" PRId64 " x4=%d wg_count=[%u,%u,%u] dst=%s\n",
+            provider.name.c_str(),
+            ggml_type_name(src0->type),
+            constants.k,
+            constants.rows,
+            constants.cols,
+            variant.x4_quant ? 1 : 0,
+            config.workgroup_count[0],
+            config.workgroup_count[1],
+            config.workgroup_count[2],
+            dst->name);
+    }
+
     if (!GGML_HRX_CHECK(hrx_stream_dispatch(
             context->stream,
             provider.executable,
@@ -7808,6 +8388,67 @@ static ggml_status ggml_backend_hrx_dispatch_mul_mat_vec_k_q8_1(
             bindings,
             3,
             HRX_DISPATCH_FLAG_NONE))) {
+        return GGML_STATUS_FAILED;
+    }
+
+    return GGML_STATUS_SUCCESS;
+}
+
+static ggml_status ggml_backend_hrx_dispatch_scale_get_rows_f32_nr1(
+        ggml_backend_hrx_context * context,
+        const ggml_tensor * scale,
+        const ggml_tensor * dst) {
+    const ggml_tensor * src0 = dst->src[0];
+    const ggml_tensor * src1 = dst->src[1];
+    hrx_buffer_ref_t bindings[3] = {};
+    if (!ggml_backend_hrx_tensor_buffer_ref(src0, &bindings[0]) ||
+        !ggml_backend_hrx_tensor_buffer_ref(src1, &bindings[1]) ||
+        !ggml_backend_hrx_tensor_buffer_ref(dst, &bindings[2])) {
+        GGML_LOG_ERROR("%s: SCALE_GET_ROWS tensor is not backed by a HRX buffer\n", __func__);
+        return GGML_STATUS_FAILED;
+    }
+
+    ggml_backend_hrx_scale_get_rows_f32_constants constants = {
+        /* .nc       = */ src0->ne[0],
+        /* .nr       = */ ggml_nelements(src1),
+        /* .src0_nb1 = */ static_cast<int64_t>(src0->nb[1]),
+        /* .src0_nb2 = */ static_cast<int64_t>(src0->nb[2]),
+        /* .src0_nb3 = */ static_cast<int64_t>(src0->nb[3]),
+        /* .idx_nb0  = */ static_cast<int64_t>(src1->nb[0]),
+        /* .idx_nb1  = */ static_cast<int64_t>(src1->nb[1]),
+        /* .idx_nb2  = */ static_cast<int64_t>(src1->nb[2]),
+        /* .dst_nb1  = */ static_cast<int64_t>(dst->nb[1]),
+        /* .dst_nb2  = */ static_cast<int64_t>(dst->nb[2]),
+        /* .dst_nb3  = */ static_cast<int64_t>(dst->nb[3]),
+        /* .ne10     = */ src1->ne[0],
+        /* .ne11     = */ src1->ne[1],
+        /* .scale    = */ 0.0f,
+        /* .bias     = */ 0.0f,
+    };
+    const uint8_t * op_params = reinterpret_cast<const uint8_t *>(scale->op_params);
+    std::memcpy(&constants.scale, op_params, sizeof(float));
+    std::memcpy(&constants.bias, op_params + sizeof(float), sizeof(float));
+
+    const auto & provider = context->device_context->scale_get_rows_f32_nr1_x4_provider;
+    const uint32_t workgroup_size = provider.export_info.workgroup_size[0] ?
+        provider.export_info.workgroup_size[0] : 256;
+    hrx_dispatch_config_t config = {
+        /* .workgroup_count = */ {
+            static_cast<uint32_t>((constants.nc + (4 * workgroup_size) - 1) / (4 * workgroup_size)),
+            1,
+            1,
+        },
+        /* .workgroup_size = */ { workgroup_size, 1, 1 },
+        /* .subgroup_size = */ 0,
+    };
+
+    if (!ggml_backend_hrx_validate_get_rows_indices(context, dst)) {
+        return GGML_STATUS_FAILED;
+    }
+
+    if (!GGML_HRX_CHECK(hrx_stream_dispatch(
+            context->stream, provider.executable, provider.export_ordinal, &config,
+            &constants, sizeof(constants), bindings, 3, HRX_DISPATCH_FLAG_NONE))) {
         return GGML_STATUS_FAILED;
     }
 
@@ -7877,6 +8518,25 @@ static ggml_status ggml_backend_hrx_dispatch_mul_mat_vec(
             /* .workgroup_size = */ { workgroup_size, 1, 1 },
             /* .subgroup_size = */ 0,
         };
+
+        if (ggml_backend_hrx_trace_routes_enabled()) {
+            std::fprintf(
+                stderr,
+                "HRX route MUL_MAT batched provider=%s type=%s k=%" PRId64 " rows=%" PRId64
+                " cols=%" PRId64 " dst_ne2=%" PRId64 " dst_ne3=%" PRId64
+                " wg_count=[%u,%u,%u] dst=%s\n",
+                provider->name.c_str(),
+                ggml_type_name(src0->type),
+                constants.k,
+                constants.rows,
+                constants.cols,
+                constants.dst_ne2,
+                constants.dst_ne3,
+                config.workgroup_count[0],
+                config.workgroup_count[1],
+                config.workgroup_count[2],
+                dst->name);
+        }
 
         if (!GGML_HRX_CHECK(hrx_stream_dispatch(
                 context->stream, provider->executable, provider->export_ordinal, &config,
@@ -7977,9 +8637,84 @@ static ggml_status ggml_backend_hrx_dispatch_mul_mat_vec(
         /* .subgroup_size = */ 0,
     };
 
+    if (ggml_backend_hrx_trace_routes_enabled()) {
+        std::fprintf(
+            stderr,
+            "HRX route MUL_MAT provider=%s type=%s k=%" PRId64 " rows=%" PRId64
+            " cols=%" PRId64 " wg_count=[%u,%u,%u] dst=%s\n",
+            provider->name.c_str(),
+            ggml_type_name(src0->type),
+            constants.k,
+            constants.rows,
+            constants.cols,
+            config.workgroup_count[0],
+            config.workgroup_count[1],
+            config.workgroup_count[2],
+            dst->name);
+    }
+
     if (!GGML_HRX_CHECK(hrx_stream_dispatch(
             context->stream, provider->executable, provider->export_ordinal, &config,
             &constants, sizeof(constants), bindings, 3, HRX_DISPATCH_FLAG_NONE))) {
+        return GGML_STATUS_FAILED;
+    }
+
+    return GGML_STATUS_SUCCESS;
+}
+
+static ggml_status ggml_backend_hrx_dispatch_mul_mat_vec_q6_k_silu_mul(
+        ggml_backend_hrx_context * context,
+        const ggml_tensor * mul_mat,
+        const ggml_tensor * mul_src,
+        const ggml_tensor * mul) {
+    const ggml_tensor * src0 = mul_mat->src[0];
+    const ggml_tensor * src1 = mul_mat->src[1];
+    hrx_buffer_ref_t bindings[4] = {};
+    if (!ggml_backend_hrx_tensor_buffer_ref(src0, &bindings[0]) ||
+        !ggml_backend_hrx_tensor_buffer_ref(src1, &bindings[1]) ||
+        !ggml_backend_hrx_tensor_buffer_ref(mul_src, &bindings[2]) ||
+        !ggml_backend_hrx_tensor_buffer_ref(mul, &bindings[3])) {
+        GGML_LOG_ERROR("%s: fused Q6_K SILU_MUL tensor is not backed by a HRX buffer\n", __func__);
+        return GGML_STATUS_FAILED;
+    }
+
+    ggml_backend_hrx_mul_mat_vec_constants constants = {
+        /* .k    = */ src0->ne[0],
+        /* .rows = */ src0->ne[1],
+        /* .cols = */ src1->ne[1],
+    };
+
+    const auto & provider = context->device_context->mul_mat_vec_q6_k_silu_mul_rows2_cols1_wg32_provider;
+    const uint32_t workgroup_size = provider.export_info.workgroup_size[0] ?
+        provider.export_info.workgroup_size[0] : 32;
+    hrx_dispatch_config_t config = {
+        /* .workgroup_count = */ {
+            static_cast<uint32_t>((constants.rows + 1) / 2),
+            static_cast<uint32_t>(constants.cols),
+            1,
+        },
+        /* .workgroup_size = */ { workgroup_size, 1, 1 },
+        /* .subgroup_size = */ 0,
+    };
+
+    if (ggml_backend_hrx_trace_routes_enabled()) {
+        std::fprintf(
+            stderr,
+            "HRX route MUL_MAT_Q6_K_SILU_MUL provider=%s k=%" PRId64 " rows=%" PRId64
+            " cols=%" PRId64 " wg_count=[%u,%u,%u] dst=%s\n",
+            provider.name.c_str(),
+            constants.k,
+            constants.rows,
+            constants.cols,
+            config.workgroup_count[0],
+            config.workgroup_count[1],
+            config.workgroup_count[2],
+            mul->name);
+    }
+
+    if (!GGML_HRX_CHECK(hrx_stream_dispatch(
+            context->stream, provider.executable, provider.export_ordinal, &config,
+            &constants, sizeof(constants), bindings, 4, HRX_DISPATCH_FLAG_NONE))) {
         return GGML_STATUS_FAILED;
     }
 
@@ -8134,6 +8869,7 @@ static ggml_status ggml_backend_hrx_dispatch_mul_mat_vec_bf16_swiglu(
 
     const uint32_t provider_rows_per_workgroup =
         provider == &context->device_context->mul_mat_vec_bf16_swiglu_wmma16_provider ? 16 :
+        provider == &context->device_context->mul_mat_vec_bf16_swiglu_rows8_k2048_cols1_provider ? 8 :
         provider == &context->device_context->mul_mat_vec_bf16_swiglu_rows4_k2048_cols1_provider ? 4 :
         provider == &context->device_context->mul_mat_vec_bf16_swiglu_rows2_cols1_provider ? 2 :
         provider == &context->device_context->mul_mat_vec_bf16_swiglu_rows2_cols8_provider ? 2 : 1;
@@ -8190,17 +8926,41 @@ static ggml_status ggml_backend_hrx_dispatch_mul_mat_vec_bf16_set_rows_f16(
         /* .dst_nb1      = */ static_cast<int64_t>(set_rows->nb[1]),
     };
 
-    const auto & provider = context->device_context->mul_mat_vec_bf16_set_rows_f16_provider;
-    const uint32_t workgroup_size = provider.export_info.workgroup_size[0] ?
-        provider.export_info.workgroup_size[0] : 256;
+    uint32_t rows_per_workgroup = 1;
+    const ggml_backend_hrx_op_provider * provider =
+        ggml_backend_hrx_select_mul_mat_vec_bf16_set_rows_f16_provider(
+            context->device_context, mul_mat, set_rows->src[0], set_rows, &rows_per_workgroup);
+    if (!provider || provider->kind != ggml_backend_hrx_provider_kind::hsaco) {
+        GGML_LOG_ERROR("%s: MUL_MAT_SET_ROWS provider is unavailable\n", __func__);
+        return GGML_STATUS_FAILED;
+    }
+
+    const uint32_t workgroup_size = provider->export_info.workgroup_size[0] ?
+        provider->export_info.workgroup_size[0] : 256;
     hrx_dispatch_config_t config = {
-        /* .workgroup_count = */ { static_cast<uint32_t>(constants.rows), 1, 1 },
+        /* .workgroup_count = */ {
+            static_cast<uint32_t>((constants.rows + rows_per_workgroup - 1) / rows_per_workgroup), 1, 1 },
         /* .workgroup_size = */ { workgroup_size, 1, 1 },
         /* .subgroup_size = */ 0,
     };
 
+    if (ggml_backend_hrx_trace_routes_enabled()) {
+        std::fprintf(
+            stderr,
+            "HRX route MUL_MAT_SET_ROWS provider=%s type=bf16 k=%" PRId64 " rows=%" PRId64
+            " dst_rows=%" PRId64 " wg_count=[%u,%u,%u] dst=%s\n",
+            provider->name.c_str(),
+            constants.k,
+            constants.rows,
+            constants.set_rows_ne1,
+            config.workgroup_count[0],
+            config.workgroup_count[1],
+            config.workgroup_count[2],
+            set_rows->name);
+    }
+
     return GGML_HRX_CHECK(hrx_stream_dispatch(
-        context->stream, provider.executable, provider.export_ordinal, &config,
+        context->stream, provider->executable, provider->export_ordinal, &config,
         &constants, sizeof(constants), bindings, 4, HRX_DISPATCH_FLAG_NONE)) ?
         GGML_STATUS_SUCCESS : GGML_STATUS_FAILED;
 }
@@ -8695,19 +9455,19 @@ static ggml_status ggml_backend_hrx_dispatch_mul_mat_id_q4_k_swiglu(
 
 static ggml_status ggml_backend_hrx_dispatch_flash_attn_ext_f32_decode(
         ggml_backend_hrx_context * context,
-        const ggml_tensor * dst) {
-    const ggml_tensor * q = dst->src[0];
-    const ggml_tensor * k = dst->src[1];
-    const ggml_tensor * v = dst->src[2];
-    const ggml_tensor * mask = dst->src[3];
-    const ggml_tensor * sinks = dst->src[4];
-    hrx_buffer_ref_t bindings[6] = {};
+        const ggml_tensor * op) {
+    const ggml_tensor * q = op->src[0];
+    const ggml_tensor * k = op->src[1];
+    const ggml_tensor * v = op->src[2];
+    const ggml_tensor * mask = op->src[3];
+    const ggml_tensor * sinks = op->src[4];
+    hrx_buffer_ref_t bindings[7] = {};
     if (!ggml_backend_hrx_tensor_buffer_ref(q, &bindings[0]) ||
         !ggml_backend_hrx_tensor_buffer_ref(k, &bindings[1]) ||
         !ggml_backend_hrx_tensor_buffer_ref(v, &bindings[2]) ||
         (mask && !ggml_backend_hrx_tensor_buffer_ref(mask, &bindings[3])) ||
         (sinks && !ggml_backend_hrx_tensor_buffer_ref(sinks, &bindings[4])) ||
-        !ggml_backend_hrx_tensor_buffer_ref(dst, &bindings[5])) {
+        !ggml_backend_hrx_tensor_buffer_ref(op, &bindings[5])) {
         GGML_LOG_ERROR("%s: FLASH_ATTN_EXT tensor is not backed by a HRX buffer\n", __func__);
         return GGML_STATUS_FAILED;
     }
@@ -8721,9 +9481,9 @@ static ggml_status ggml_backend_hrx_dispatch_flash_attn_ext_f32_decode(
     float scale = 1.0f;
     float max_bias = 0.0f;
     float logit_softcap = 0.0f;
-    std::memcpy(&scale, reinterpret_cast<const int32_t *>(dst->op_params), sizeof(float));
-    std::memcpy(&max_bias, reinterpret_cast<const int32_t *>(dst->op_params) + 1, sizeof(float));
-    std::memcpy(&logit_softcap, reinterpret_cast<const int32_t *>(dst->op_params) + 2, sizeof(float));
+    std::memcpy(&scale, reinterpret_cast<const int32_t *>(op->op_params), sizeof(float));
+    std::memcpy(&max_bias, reinterpret_cast<const int32_t *>(op->op_params) + 1, sizeof(float));
+    std::memcpy(&logit_softcap, reinterpret_cast<const int32_t *>(op->op_params) + 2, sizeof(float));
     if (logit_softcap != 0.0f) {
         scale /= logit_softcap;
     }
@@ -8748,9 +9508,9 @@ static ggml_status ggml_backend_hrx_dispatch_flash_attn_ext_f32_decode(
         /* .v_nb1    = */ static_cast<int64_t>(v->nb[1]),
         /* .v_nb2    = */ static_cast<int64_t>(v->nb[2]),
         /* .v_nb3    = */ static_cast<int64_t>(v->nb[3]),
-        /* .dst_nb1  = */ static_cast<int64_t>(dst->nb[1]),
-        /* .dst_nb2  = */ static_cast<int64_t>(dst->nb[2]),
-        /* .dst_nb3  = */ static_cast<int64_t>(dst->nb[3]),
+        /* .dst_nb1  = */ static_cast<int64_t>(op->nb[1]),
+        /* .dst_nb2  = */ static_cast<int64_t>(op->nb[2]),
+        /* .dst_nb3  = */ static_cast<int64_t>(op->nb[3]),
         /* .mask_nb0 = */ mask ? static_cast<int64_t>(mask->nb[0]) : 0,
         /* .mask_nb1 = */ mask ? static_cast<int64_t>(mask->nb[1]) : 0,
         /* .mask_nb3 = */ mask ? static_cast<int64_t>(mask->nb[3]) : 0,
@@ -8764,13 +9524,16 @@ static ggml_status ggml_backend_hrx_dispatch_flash_attn_ext_f32_decode(
         /* .has_sinks = */ sinks ? 1 : 0,
     };
 
-    const bool use_prefill_direct =
-        ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_direct(context->device_context, dst);
-    const bool use_prefill_wmma = !use_prefill_direct &&
-        ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_wmma(context->device_context, dst);
-    const bool use_prefill_tile = !use_prefill_direct && !use_prefill_wmma &&
-        ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_tile(context->device_context, dst);
+    const bool use_decode_gqa8 =
+        ggml_backend_hrx_supports_flash_attn_ext_f32_f16_decode_gqa8(context->device_context, op);
+    const bool use_prefill_direct = !use_decode_gqa8 &&
+        ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_direct(context->device_context, op);
+    const bool use_prefill_wmma = !use_decode_gqa8 && !use_prefill_direct &&
+        ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_wmma(context->device_context, op);
+    const bool use_prefill_tile = !use_decode_gqa8 && !use_prefill_direct && !use_prefill_wmma &&
+        ggml_backend_hrx_supports_flash_attn_ext_f32_f16_prefill_tile(context->device_context, op);
     const ggml_backend_hrx_op_provider * provider =
+        use_decode_gqa8 ? &context->device_context->flash_attn_ext_f16_decode_gqa8_split_provider :
         use_prefill_direct ? &context->device_context->flash_attn_ext_f16_prefill_direct_provider :
         use_prefill_wmma ? &context->device_context->flash_attn_ext_f16_prefill_wmma_provider :
         use_prefill_tile ? &context->device_context->flash_attn_ext_f16_prefill_tile_provider :
@@ -8780,14 +9543,68 @@ static ggml_status ggml_backend_hrx_dispatch_flash_attn_ext_f32_decode(
         return GGML_STATUS_FAILED;
     }
 
+    if (use_decode_gqa8) {
+        static constexpr uint32_t gqa8_split_count = 8;
+        const size_t partial_count = static_cast<size_t>(constants.S) *
+            static_cast<size_t>(constants.N) *
+            static_cast<size_t>(constants.H) *
+            gqa8_split_count;
+        const size_t scratch_size = partial_count *
+            (static_cast<size_t>(constants.D) + 2) *
+            sizeof(float);
+        if (!ggml_backend_hrx_request_scratch_buffer(context, scratch_size, &bindings[6])) {
+            GGML_LOG_ERROR("%s: failed to allocate FLASH_ATTN_EXT split scratch\n", __func__);
+            return GGML_STATUS_FAILED;
+        }
+
+        const uint32_t split_workgroup_size = provider->export_info.workgroup_size[0] ?
+            provider->export_info.workgroup_size[0] : 128;
+        hrx_dispatch_config_t split_config = {
+            /* .workgroup_count = */ {
+                static_cast<uint32_t>(constants.H_KV * gqa8_split_count),
+                static_cast<uint32_t>(constants.N),
+                static_cast<uint32_t>(constants.S),
+            },
+            /* .workgroup_size = */ { split_workgroup_size, 1, 1 },
+            /* .subgroup_size = */ 0,
+        };
+        if (!GGML_HRX_CHECK(hrx_stream_dispatch(
+                context->stream, provider->executable, provider->export_ordinal, &split_config,
+                &constants, sizeof(constants), bindings, 7, HRX_DISPATCH_FLAG_NONE))) {
+            return GGML_STATUS_FAILED;
+        }
+
+        hrx_buffer_ref_t reduce_bindings[3] = { bindings[6], bindings[4], bindings[5] };
+        const auto & reduce_provider = context->device_context->flash_attn_ext_f16_decode_gqa8_reduce_provider;
+        const uint32_t reduce_workgroup_size = reduce_provider.export_info.workgroup_size[0] ?
+            reduce_provider.export_info.workgroup_size[0] : 256;
+        hrx_dispatch_config_t reduce_config = {
+            /* .workgroup_count = */ {
+                static_cast<uint32_t>(constants.H),
+                static_cast<uint32_t>(constants.N),
+                static_cast<uint32_t>(constants.S),
+            },
+            /* .workgroup_size = */ { reduce_workgroup_size, 1, 1 },
+            /* .subgroup_size = */ 0,
+        };
+        if (!GGML_HRX_CHECK(hrx_stream_dispatch(
+                context->stream, reduce_provider.executable, reduce_provider.export_ordinal, &reduce_config,
+                &constants, sizeof(constants), reduce_bindings, 3, HRX_DISPATCH_FLAG_NONE))) {
+            return GGML_STATUS_FAILED;
+        }
+        return GGML_STATUS_SUCCESS;
+    }
+
     const uint32_t workgroup_size = provider->export_info.workgroup_size[0] ?
         provider->export_info.workgroup_size[0] : 256;
     hrx_dispatch_config_t config = {
         /* .workgroup_count = */ {
             static_cast<uint32_t>(
+                use_decode_gqa8 ? constants.H_KV :
                 (use_prefill_direct || use_prefill_wmma) ? ((constants.N + 15) / 16) :
                 use_prefill_tile ? ((constants.N + 7) / 8) : constants.H),
-            static_cast<uint32_t>((use_prefill_direct || use_prefill_wmma || use_prefill_tile) ?
+            static_cast<uint32_t>(use_decode_gqa8 ? constants.N :
+                (use_prefill_direct || use_prefill_wmma || use_prefill_tile) ?
                 constants.H : constants.N),
             static_cast<uint32_t>(constants.S),
         },
@@ -9217,22 +10034,68 @@ static ggml_status ggml_backend_hrx_dispatch_ssm_conv_update(
         ggml_backend_hrx_context * context,
         const ggml_tensor * concat,
         const ggml_tensor * state_update,
+        const ggml_tensor * deferred_state_scale,
+        const ggml_tensor * deferred_state_get_rows,
         const ggml_tensor * ssm,
         const ggml_tensor * fused_dst,
         bool apply_silu) {
     const ggml_tensor * conv_state = concat->src[0];
+    const ggml_tensor * state_binding = conv_state;
+    const ggml_tensor * state_idx_binding = nullptr;
+    const ggml_tensor * state_get_rows = deferred_state_get_rows ?
+        deferred_state_get_rows : ggml_backend_hrx_unwrap_reshape_view_src0(conv_state);
+    const bool requested_gather_state = deferred_state_scale || deferred_state_get_rows;
+    const bool gather_state =
+        requested_gather_state &&
+        state_get_rows &&
+        state_get_rows->op == GGML_OP_GET_ROWS &&
+        state_get_rows->src[1] &&
+        ggml_nelements(state_get_rows->src[1]) == 1 &&
+        state_get_rows->src[0] &&
+        state_get_rows->src[0]->type == GGML_TYPE_F32 &&
+        (!deferred_state_scale ||
+         (deferred_state_scale->op == GGML_OP_SCALE &&
+          deferred_state_scale->src[0] &&
+          deferred_state_scale->src[0]->type == GGML_TYPE_F32)) &&
+        state_get_rows->src[1]->type == GGML_TYPE_I32 &&
+        context->device_context->ssm_conv_update_gather_provider.kind == ggml_backend_hrx_provider_kind::hsaco;
+    int64_t gather_state_flat_offset = 0;
+    int64_t gather_src_nb1 = 0;
+    float gather_scale = 1.0f;
+    float gather_bias = 0.0f;
+    if (gather_state) {
+        const ggml_tensor * state_base = deferred_state_scale ? deferred_state_scale->src[0] : state_get_rows->src[0];
+        if (!state_base || state_base->type != GGML_TYPE_F32) {
+            GGML_LOG_ERROR("%s: SSM_CONV_UPDATE gathered state source is not F32\n", __func__);
+            return GGML_STATUS_FAILED;
+        }
+        const uint8_t * conv_state_data = reinterpret_cast<const uint8_t *>(conv_state->data);
+        const uint8_t * get_rows_data = reinterpret_cast<const uint8_t *>(state_get_rows->data);
+        if (conv_state_data < get_rows_data) {
+            GGML_LOG_ERROR("%s: SSM_CONV_UPDATE gathered state view is before GET_ROWS base\n", __func__);
+            return GGML_STATUS_FAILED;
+        }
+        const size_t view_offset = static_cast<size_t>(conv_state_data - get_rows_data);
+        if ((view_offset % sizeof(float)) != 0 ||
+            (conv_state->nb[0] % sizeof(float)) != 0 ||
+            (conv_state->nb[1] % sizeof(float)) != 0 ||
+            (conv_state->nb[2] % sizeof(float)) != 0) {
+            GGML_LOG_ERROR("%s: SSM_CONV_UPDATE gathered state view is not F32 aligned\n", __func__);
+            return GGML_STATUS_FAILED;
+        }
+        gather_state_flat_offset = static_cast<int64_t>(view_offset / sizeof(float));
+        gather_src_nb1 = static_cast<int64_t>(state_base->nb[1]);
+        if (deferred_state_scale) {
+            const uint8_t * op_params = reinterpret_cast<const uint8_t *>(deferred_state_scale->op_params);
+            std::memcpy(&gather_scale, op_params, sizeof(float));
+            std::memcpy(&gather_bias, op_params + sizeof(float), sizeof(float));
+        }
+        state_binding = state_base;
+        state_idx_binding = state_get_rows->src[1];
+    }
     const ggml_tensor * input = concat->src[1];
     const ggml_tensor * weight = ssm->src[1];
     const ggml_tensor * out = fused_dst ? fused_dst : ssm;
-    hrx_buffer_ref_t bindings[5] = {};
-    if (!ggml_backend_hrx_tensor_buffer_ref(conv_state, &bindings[0]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(input, &bindings[1]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(weight, &bindings[2]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(state_update, &bindings[3]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(out, &bindings[4])) {
-        GGML_LOG_ERROR("%s: SSM_CONV_UPDATE tensor is not backed by a HRX buffer\n", __func__);
-        return GGML_STATUS_FAILED;
-    }
 
     ggml_backend_hrx_ssm_conv_update_constants constants = {
         /* .d_conv           = */ weight->ne[0],
@@ -9252,7 +10115,37 @@ static ggml_status ggml_backend_hrx_dispatch_ssm_conv_update(
         /* .pad              = */ 0,
     };
 
-    const auto & provider = context->device_context->ssm_conv_update_provider;
+    const bool gather_decode_shape =
+        gather_state &&
+        constants.d_conv == 4 &&
+        constants.conv_state_width == 3 &&
+        constants.n_tokens == 1 &&
+        constants.n_seqs == 1 &&
+        constants.input_nb1 == static_cast<int64_t>(sizeof(float)) &&
+        constants.state_nb0 == static_cast<int64_t>(sizeof(float)) &&
+        constants.state_nb1 == constants.conv_state_width * static_cast<int64_t>(sizeof(float)) &&
+        ggml_is_contiguous(state_update) &&
+        ggml_nbytes(state_update) == static_cast<size_t>(constants.conv_state_width * constants.d_inner) * sizeof(float) &&
+        out->nb[0] == sizeof(float) &&
+        weight->nb[0] == sizeof(float);
+    const bool use_gather_decode_direct =
+        gather_decode_shape &&
+        !deferred_state_scale &&
+        context->device_context->ssm_conv_update_gather_decode_direct_provider.kind == ggml_backend_hrx_provider_kind::hsaco;
+    const bool use_gather_decode =
+        gather_decode_shape &&
+        context->device_context->ssm_conv_update_gather_decode_provider.kind == ggml_backend_hrx_provider_kind::hsaco;
+    const auto & provider = gather_state ?
+        (use_gather_decode_direct ?
+             context->device_context->ssm_conv_update_gather_decode_direct_provider :
+             use_gather_decode ?
+                 context->device_context->ssm_conv_update_gather_decode_provider :
+                 context->device_context->ssm_conv_update_gather_provider) :
+        context->device_context->ssm_conv_update_provider;
+    if (!ggml_backend_hrx_provider_matches_env(
+            "GGML_HRX_EXPECT_SSM_CONV_UPDATE_PROVIDER", &provider, "SSM_CONV_UPDATE")) {
+        return GGML_STATUS_FAILED;
+    }
     const int64_t total = constants.d_inner * constants.n_tokens * constants.n_seqs;
     const uint32_t workgroup_size = provider.export_info.workgroup_size[0] ?
         provider.export_info.workgroup_size[0] : 256;
@@ -9266,17 +10159,72 @@ static ggml_status ggml_backend_hrx_dispatch_ssm_conv_update(
         /* .subgroup_size = */ 0,
     };
 
-    if (!GGML_HRX_CHECK(hrx_stream_dispatch(
-            context->stream,
-            provider.executable,
-            provider.export_ordinal,
-            &config,
-            &constants,
-            sizeof(constants),
-            bindings,
-            5,
-            HRX_DISPATCH_FLAG_NONE))) {
-        return GGML_STATUS_FAILED;
+    if (gather_state) {
+        hrx_buffer_ref_t bindings[6] = {};
+        if (!ggml_backend_hrx_tensor_buffer_ref(state_binding, &bindings[0]) ||
+            !ggml_backend_hrx_tensor_buffer_ref(state_idx_binding, &bindings[1]) ||
+            !ggml_backend_hrx_tensor_buffer_ref(input, &bindings[2]) ||
+            !ggml_backend_hrx_tensor_buffer_ref(weight, &bindings[3]) ||
+            !ggml_backend_hrx_tensor_buffer_ref(state_update, &bindings[4]) ||
+            !ggml_backend_hrx_tensor_buffer_ref(out, &bindings[5])) {
+            GGML_LOG_ERROR("%s: SSM_CONV_UPDATE gather tensor is not backed by a HRX buffer\n", __func__);
+            return GGML_STATUS_FAILED;
+        }
+        ggml_backend_hrx_ssm_conv_update_gather_constants gather_constants = {
+            /* .d_conv                   = */ constants.d_conv,
+            /* .conv_state_width         = */ constants.conv_state_width,
+            /* .d_inner                  = */ constants.d_inner,
+            /* .n_tokens                 = */ constants.n_tokens,
+            /* .n_seqs                   = */ constants.n_seqs,
+            /* .state_nb0                = */ constants.state_nb0,
+            /* .state_nb1                = */ constants.state_nb1,
+            /* .state_nb2                = */ constants.state_nb2,
+            /* .input_nb0                = */ constants.input_nb0,
+            /* .input_nb1                = */ constants.input_nb1,
+            /* .weight_nb1               = */ constants.weight_nb1,
+            /* .dst_nb1                  = */ constants.dst_nb1,
+            /* .dst_nb2                  = */ constants.dst_nb2,
+            /* .gather_state_flat_offset = */ gather_state_flat_offset,
+            /* .gather_src_nb1           = */ gather_src_nb1,
+            /* .gather_scale             = */ gather_scale,
+            /* .gather_bias              = */ gather_bias,
+            /* .apply_silu               = */ apply_silu ? 1 : 0,
+            /* .pad                      = */ 0,
+        };
+        if (!GGML_HRX_CHECK(hrx_stream_dispatch(
+                context->stream,
+                provider.executable,
+                provider.export_ordinal,
+                &config,
+                &gather_constants,
+                sizeof(gather_constants),
+                bindings,
+                6,
+                HRX_DISPATCH_FLAG_NONE))) {
+            return GGML_STATUS_FAILED;
+        }
+    } else {
+        hrx_buffer_ref_t bindings[5] = {};
+        if (!ggml_backend_hrx_tensor_buffer_ref(conv_state, &bindings[0]) ||
+            !ggml_backend_hrx_tensor_buffer_ref(input, &bindings[1]) ||
+            !ggml_backend_hrx_tensor_buffer_ref(weight, &bindings[2]) ||
+            !ggml_backend_hrx_tensor_buffer_ref(state_update, &bindings[3]) ||
+            !ggml_backend_hrx_tensor_buffer_ref(out, &bindings[4])) {
+            GGML_LOG_ERROR("%s: SSM_CONV_UPDATE tensor is not backed by a HRX buffer\n", __func__);
+            return GGML_STATUS_FAILED;
+        }
+        if (!GGML_HRX_CHECK(hrx_stream_dispatch(
+                context->stream,
+                provider.executable,
+                provider.export_ordinal,
+                &config,
+                &constants,
+                sizeof(constants),
+                bindings,
+                5,
+                HRX_DISPATCH_FLAG_NONE))) {
+            return GGML_STATUS_FAILED;
+        }
     }
 
     return GGML_STATUS_SUCCESS;
@@ -9287,24 +10235,69 @@ static ggml_status ggml_backend_hrx_dispatch_gated_delta_net(
         const ggml_tensor * dst,
         const ggml_tensor * state_dst = nullptr,
         bool beta_sigmoid = false,
-        bool preserve_state_tail = true) {
+        bool preserve_state_tail = true,
+        const ggml_tensor * deferred_state_scale = nullptr,
+        const ggml_tensor * deferred_state_get_rows = nullptr) {
     const ggml_tensor * q = dst->src[0];
     const ggml_tensor * k = dst->src[1];
     const ggml_tensor * v = dst->src[2];
     const ggml_tensor * g = dst->src[3];
     const ggml_tensor * beta = beta_sigmoid ? dst->src[4]->src[0] : dst->src[4];
     const ggml_tensor * state = dst->src[5];
-    hrx_buffer_ref_t bindings[8] = {};
-    if (!ggml_backend_hrx_tensor_buffer_ref(q, &bindings[0]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(k, &bindings[1]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(v, &bindings[2]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(g, &bindings[3]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(beta, &bindings[4]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(state, &bindings[5]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(dst, &bindings[6]) ||
-        !ggml_backend_hrx_tensor_buffer_ref(state_dst ? state_dst : dst, &bindings[7])) {
-        GGML_LOG_ERROR("%s: GATED_DELTA_NET tensor is not backed by a HRX buffer\n", __func__);
-        return GGML_STATUS_FAILED;
+
+    const ggml_tensor * state_binding = state;
+    const ggml_tensor * state_idx_binding = nullptr;
+    const ggml_tensor * state_get_rows = deferred_state_get_rows ?
+        deferred_state_get_rows : ggml_backend_hrx_unwrap_reshape_view_src0(state);
+    const bool requested_gather_state = deferred_state_scale || deferred_state_get_rows;
+    const bool direct_gather_state = deferred_state_get_rows && !deferred_state_scale;
+    const bool gather_state =
+        requested_gather_state &&
+        state_get_rows &&
+        state_get_rows->op == GGML_OP_GET_ROWS &&
+        state_get_rows->src[1] &&
+        ggml_nelements(state_get_rows->src[1]) == 1 &&
+        state_get_rows->src[0] &&
+        state_get_rows->src[0]->type == GGML_TYPE_F32 &&
+        (!deferred_state_scale ||
+         (deferred_state_scale->op == GGML_OP_SCALE &&
+          deferred_state_scale->src[0] &&
+          deferred_state_scale->src[0]->type == GGML_TYPE_F32)) &&
+        state_get_rows->src[1]->type == GGML_TYPE_I32 &&
+        (direct_gather_state ?
+             context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_direct_gather_provider.kind :
+             context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_provider.kind) ==
+            ggml_backend_hrx_provider_kind::hsaco;
+    int64_t gather_state_flat_offset = 0;
+    int64_t gather_src_nb1 = 0;
+    float gather_scale = 1.0f;
+    float gather_bias = 0.0f;
+    if (gather_state) {
+        const ggml_tensor * state_base = deferred_state_scale ? deferred_state_scale->src[0] : state_get_rows->src[0];
+        if (!state_base || state_base->type != GGML_TYPE_F32) {
+            GGML_LOG_ERROR("%s: GATED_DELTA_NET gathered state source is not F32\n", __func__);
+            return GGML_STATUS_FAILED;
+        }
+        const uint8_t * state_data = reinterpret_cast<const uint8_t *>(state->data);
+        const uint8_t * get_rows_data = reinterpret_cast<const uint8_t *>(state_get_rows->data);
+        if (state_data < get_rows_data) {
+            GGML_LOG_ERROR("%s: GATED_DELTA_NET gathered state view is before GET_ROWS base\n", __func__);
+            return GGML_STATUS_FAILED;
+        }
+        const size_t view_offset = static_cast<size_t>(state_data - get_rows_data);
+        if ((view_offset % sizeof(float)) != 0 || !ggml_is_contiguous(state)) {
+            GGML_LOG_ERROR("%s: GATED_DELTA_NET gathered state view is not contiguous F32\n", __func__);
+            return GGML_STATUS_FAILED;
+        }
+        gather_state_flat_offset = static_cast<int64_t>(view_offset / sizeof(float));
+        gather_src_nb1 = static_cast<int64_t>(state_base->nb[1]);
+        if (deferred_state_scale) {
+            const uint8_t * op_params = reinterpret_cast<const uint8_t *>(deferred_state_scale->op_params);
+            std::memcpy(&gather_scale, op_params, sizeof(float));
+            std::memcpy(&gather_bias, op_params + sizeof(float), sizeof(float));
+        }
+        state_binding = state_base;
+        state_idx_binding = state_get_rows->src[1];
     }
 
     const int64_t attn_score_elems = v->ne[0] * v->ne[1] * v->ne[2] * v->ne[3];
@@ -9358,7 +10351,7 @@ static ggml_status ggml_backend_hrx_dispatch_gated_delta_net(
         constants.rk3 == 1 &&
         context->device_context->gated_delta_net_s128_cluster8_nokda_nomod_provider.kind ==
             ggml_backend_hrx_provider_kind::hsaco;
-    const bool use_s128_h32_qk16_tok1_nokda =
+    const bool s128_h32_qk16_tok1_nokda_shape =
         use_s128_cluster8_nokda &&
         constants.H == 32 &&
         constants.n_tokens == 1 &&
@@ -9376,15 +10369,33 @@ static ggml_status ggml_backend_hrx_dispatch_gated_delta_net(
         k->nb[1] == 128 * sizeof(float) &&
         v->nb[1] == 128 * sizeof(float) &&
         g->nb[1] == sizeof(float) &&
-        beta->nb[1] == sizeof(float) &&
+        beta->nb[1] == sizeof(float);
+    const bool use_s128_h32_qk16_tok1_nokda =
+        s128_h32_qk16_tok1_nokda_shape &&
         context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_provider.kind ==
             ggml_backend_hrx_provider_kind::hsaco;
     const bool use_s128_h32_qk16_tok1_nokda_beta_sigmoid =
         beta_sigmoid &&
-        use_s128_h32_qk16_tok1_nokda &&
+        s128_h32_qk16_tok1_nokda_shape &&
         context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_provider.kind ==
             ggml_backend_hrx_provider_kind::hsaco;
-    const ggml_backend_hrx_op_provider * provider = use_s128_h32_qk16_tok1_nokda_beta_sigmoid ?
+    const bool use_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather =
+        gather_state &&
+        beta_sigmoid &&
+        s128_h32_qk16_tok1_nokda_shape &&
+        (direct_gather_state ?
+             context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_direct_gather_provider.kind :
+             context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_provider.kind) ==
+            ggml_backend_hrx_provider_kind::hsaco;
+    if (requested_gather_state && !use_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather) {
+        GGML_LOG_ERROR("%s: GATED_DELTA_NET gathered state route is unsupported\n", __func__);
+        return GGML_STATUS_FAILED;
+    }
+    const ggml_backend_hrx_op_provider * provider = use_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather ?
+        (direct_gather_state ?
+             &context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_direct_gather_provider :
+             &context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_provider) :
+        use_s128_h32_qk16_tok1_nokda_beta_sigmoid ?
         &context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_provider :
         use_s128_h32_qk16_tok1_nokda ?
         &context->device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_provider :
@@ -9426,16 +10437,29 @@ static ggml_status ggml_backend_hrx_dispatch_gated_delta_net(
         /* .scale    = */ constants.scale,
         /* ._pad     = */ 0,
     };
-    const void * dispatch_constants = use_s128_h32_qk16_tok1_nokda ?
+    ggml_backend_hrx_gated_delta_net_s128_h32_qk16_tok1_nokda_gather_constants h32_gather_constants = {
+        /* .state_dst_offset         = */ constants.state_dst_offset,
+        /* .gather_state_flat_offset = */ gather_state_flat_offset,
+        /* .gather_src_nb1           = */ gather_src_nb1,
+        /* .scale                    = */ constants.scale,
+        /* .gather_scale             = */ gather_scale,
+        /* .gather_bias              = */ gather_bias,
+        /* ._pad                     = */ 0,
+    };
+    const void * dispatch_constants = use_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather ?
+        static_cast<const void *>(&h32_gather_constants) :
+        use_s128_h32_qk16_tok1_nokda ?
         static_cast<const void *>(&h32_constants) :
         use_s128_cluster8_nokda_nomod ?
         static_cast<const void *>(&nomod_constants) :
         static_cast<const void *>(&constants);
-    const size_t dispatch_constants_size = use_s128_h32_qk16_tok1_nokda ?
+    const size_t dispatch_constants_size = use_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather ?
+        sizeof(h32_gather_constants) :
+        use_s128_h32_qk16_tok1_nokda ?
         sizeof(h32_constants) :
         use_s128_cluster8_nokda_nomod ? sizeof(nomod_constants) : sizeof(constants);
     const uint32_t gdn_cols_per_workgroup =
-        use_s128_h32_qk16_tok1_nokda ? 4 :
+        (use_s128_h32_qk16_tok1_nokda || use_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather) ? 4 :
         use_s128_cluster8 ? 8 : 4;
     hrx_dispatch_config_t config = {
         /* .workgroup_count = */ {
@@ -9451,6 +10475,32 @@ static ggml_status ggml_backend_hrx_dispatch_gated_delta_net(
         /* .subgroup_size = */ 0,
     };
 
+    if (!ggml_backend_hrx_provider_matches_env(
+            "GGML_HRX_EXPECT_GATED_DELTA_NET_PROVIDER", provider, "GATED_DELTA_NET")) {
+        return GGML_STATUS_FAILED;
+    }
+
+    hrx_buffer_ref_t bindings[9] = {};
+    size_t binding_count = gather_state ? 9 : 8;
+    const int dst_binding_index = gather_state ? 7 : 6;
+    const int state_dst_binding_index = gather_state ? 8 : 7;
+    bool bindings_ok =
+        ggml_backend_hrx_tensor_buffer_ref(q, &bindings[0]) &&
+        ggml_backend_hrx_tensor_buffer_ref(k, &bindings[1]) &&
+        ggml_backend_hrx_tensor_buffer_ref(v, &bindings[2]) &&
+        ggml_backend_hrx_tensor_buffer_ref(g, &bindings[3]) &&
+        ggml_backend_hrx_tensor_buffer_ref(beta, &bindings[4]) &&
+        ggml_backend_hrx_tensor_buffer_ref(state_binding, &bindings[5]) &&
+        ggml_backend_hrx_tensor_buffer_ref(dst, &bindings[dst_binding_index]) &&
+        ggml_backend_hrx_tensor_buffer_ref(state_dst ? state_dst : dst, &bindings[state_dst_binding_index]);
+    if (gather_state) {
+        bindings_ok = bindings_ok && ggml_backend_hrx_tensor_buffer_ref(state_idx_binding, &bindings[6]);
+    }
+    if (!bindings_ok) {
+        GGML_LOG_ERROR("%s: GATED_DELTA_NET tensor is not backed by a HRX buffer\n", __func__);
+        return GGML_STATUS_FAILED;
+    }
+
     if (!GGML_HRX_CHECK(hrx_stream_dispatch(
             context->stream,
             provider->executable,
@@ -9459,7 +10509,7 @@ static ggml_status ggml_backend_hrx_dispatch_gated_delta_net(
             dispatch_constants,
             dispatch_constants_size,
             bindings,
-            8,
+            binding_count,
             HRX_DISPATCH_FLAG_NONE))) {
         return GGML_STATUS_FAILED;
     }
@@ -9467,10 +10517,10 @@ static ggml_status ggml_backend_hrx_dispatch_gated_delta_net(
         const size_t attn_nbytes = static_cast<size_t>(attn_score_elems) * sizeof(float);
         if (!GGML_HRX_CHECK(hrx_stream_copy_buffer(
                 context->stream,
-                bindings[7].buffer,
-                bindings[7].offset,
-                bindings[6].buffer,
-                bindings[6].offset + attn_nbytes,
+                bindings[state_dst_binding_index].buffer,
+                bindings[state_dst_binding_index].offset,
+                bindings[dst_binding_index].buffer,
+                bindings[dst_binding_index].offset + attn_nbytes,
                 ggml_nbytes(state_dst)))) {
             return GGML_STATUS_FAILED;
         }
@@ -9513,6 +10563,23 @@ static bool ggml_backend_hrx_tensors_overlap(const ggml_tensor * a, const ggml_t
     const uintptr_t b_end = b_start + ggml_nbytes(b);
     return (b_start <= a_start && a_start < b_end) ||
            (a_start <= b_start && b_start < a_end);
+}
+
+static bool ggml_backend_hrx_same_data_span(const ggml_tensor * a, const ggml_tensor * b) {
+    return a && b && a->data == b->data && ggml_nbytes(a) == ggml_nbytes(b);
+}
+
+static int ggml_backend_hrx_find_node_index(
+        const ggml_cgraph * cgraph,
+        const ggml_tensor * node,
+        int begin,
+        int end) {
+    for (int i = begin; i < end; ++i) {
+        if (cgraph->nodes[i] == node) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 static bool ggml_backend_hrx_topk_moe_fusion_memory_safe(
@@ -9675,15 +10742,179 @@ static bool ggml_backend_hrx_try_topk_moe_fusion(
 struct ggml_backend_hrx_ssm_conv_update_decode_fusion {
     const ggml_tensor * state_view = nullptr;
     const ggml_tensor * state_update = nullptr;
+    const ggml_tensor * state_scale = nullptr;
+    const ggml_tensor * state_get_rows = nullptr;
     const ggml_tensor * ssm = nullptr;
     const ggml_tensor * out = nullptr;
+    std::vector<const ggml_tensor *> deferred_state_nodes;
     bool apply_silu = false;
 };
+
+static bool ggml_backend_hrx_scale_aliases_get_rows_source(
+        const ggml_tensor * scale,
+        const ggml_tensor * get_rows) {
+    return scale &&
+           get_rows &&
+           scale->op == GGML_OP_SCALE &&
+           scale->src[0] &&
+           get_rows->op == GGML_OP_GET_ROWS &&
+           get_rows->src[0] &&
+           ggml_backend_hrx_same_data_span(scale, get_rows->src[0]) &&
+           ggml_backend_hrx_same_data_span(scale->src[0], get_rows->src[0]);
+}
+
+static bool ggml_backend_hrx_supports_ssm_conv_update_gather_decode(
+        const ggml_backend_hrx_device_context * device_context,
+        const ggml_tensor * state_scale,
+        const ggml_tensor * state_get_rows,
+        const ggml_tensor * concat) {
+    if (ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_SSM_STATE_GATHER_FUSION") ||
+        device_context->ssm_conv_update_gather_provider.kind != ggml_backend_hrx_provider_kind::hsaco ||
+        !ggml_backend_hrx_supports_get_rows_f32(device_context, state_get_rows) ||
+        ggml_backend_hrx_unwrap_reshape_view_src0(concat->src[0]) != state_get_rows ||
+        !state_get_rows->src[1] ||
+        state_get_rows->src[1]->type != GGML_TYPE_I32 ||
+        ggml_nelements(state_get_rows->src[1]) != 1 ||
+        state_get_rows->src[0]->type != GGML_TYPE_F32 ||
+        (concat->src[0]->nb[0] % sizeof(float)) != 0 ||
+        (concat->src[0]->nb[1] % sizeof(float)) != 0 ||
+        (concat->src[0]->nb[2] % sizeof(float)) != 0) {
+        return false;
+    }
+
+    if (!state_scale) {
+        return true;
+    }
+
+    if (!ggml_backend_hrx_supports_scale(device_context, state_scale) ||
+        !ggml_backend_hrx_scale_aliases_get_rows_source(state_scale, state_get_rows) ||
+        ggml_nelements(state_scale) != ggml_nelements(state_get_rows->src[0])) {
+        return false;
+    }
+    return true;
+}
+
+static const ggml_tensor * ggml_backend_hrx_find_alias_scale_before(
+        const ggml_cgraph * cgraph,
+        int end_idx,
+        const ggml_tensor * get_rows,
+        int * scale_idx_out) {
+    if (!get_rows || get_rows->op != GGML_OP_GET_ROWS || !get_rows->src[0]) {
+        return nullptr;
+    }
+
+    for (int i = end_idx - 1; i >= 0; --i) {
+        const ggml_tensor * node = cgraph->nodes[i];
+        if (node && ggml_backend_hrx_scale_aliases_get_rows_source(node, get_rows)) {
+            if (scale_idx_out) {
+                *scale_idx_out = i;
+            }
+            return node;
+        }
+    }
+
+    return nullptr;
+}
+
+static bool ggml_backend_hrx_collect_reshape_view_chain(
+        const ggml_cgraph * cgraph,
+        const ggml_tensor * start,
+        const ggml_tensor * terminal,
+        int begin,
+        int end,
+        std::vector<std::pair<int, ggml_op>> * indexed_ops,
+        std::vector<const ggml_tensor *> * nodes) {
+    const ggml_tensor * current = start;
+    while (ggml_backend_hrx_is_reshape_view(current)) {
+        const int idx = ggml_backend_hrx_find_node_index(cgraph, current, begin, end);
+        if (idx < 0) {
+            return false;
+        }
+        indexed_ops->push_back({ idx, current->op });
+        nodes->push_back(current);
+        current = current->src[0];
+    }
+    return current == terminal;
+}
+
+static bool ggml_backend_hrx_node_list_contains(
+        const ggml_cgraph * cgraph,
+        const std::vector<int> & idxs,
+        const ggml_tensor * node) {
+    for (int idx : idxs) {
+        if (cgraph->nodes[idx] == node) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool ggml_backend_hrx_can_fuse_state_gather_subgraph(
+        const ggml_cgraph * cgraph,
+        const std::vector<int> & idxs,
+        const std::vector<ggml_op> & ops,
+        const int * outputs,
+        int num_outputs) {
+    for (size_t i = 0; i < idxs.size(); ++i) {
+        const int idx = idxs[i];
+        if (idx >= cgraph->n_nodes) {
+            return false;
+        }
+
+        const ggml_tensor * node = cgraph->nodes[idx];
+        if (!node || node->op != ops[i] || (node->flags & GGML_TENSOR_FLAG_COMPUTE) == 0) {
+            return false;
+        }
+
+        bool is_output = false;
+        for (int output_idx = 0; output_idx < num_outputs; ++output_idx) {
+            is_output = is_output || outputs[output_idx] == idx;
+        }
+        if (is_output) {
+            continue;
+        }
+
+        if (node->flags & GGML_TENSOR_FLAG_OUTPUT) {
+            return false;
+        }
+
+        int subgraph_uses = 0;
+        for (size_t j = 0; j < idxs.size(); ++j) {
+            if (j == i) {
+                continue;
+            }
+            const ggml_tensor * other_node = cgraph->nodes[idxs[j]];
+            for (int src_idx = 0; src_idx < GGML_MAX_SRC; ++src_idx) {
+                if (other_node->src[src_idx] == node) {
+                    ++subgraph_uses;
+                }
+            }
+        }
+        if (subgraph_uses != ggml_node_get_use_count(cgraph, idx)) {
+            return false;
+        }
+
+        const ggml_tensor * view_src = node->view_src;
+        if (node->op == GGML_OP_SCALE) {
+            view_src = nullptr;
+        }
+        while (view_src) {
+            if (!ggml_backend_hrx_node_list_contains(cgraph, idxs, view_src)) {
+                return false;
+            }
+            view_src = view_src->view_src;
+        }
+    }
+
+    return true;
+}
 
 static bool ggml_backend_hrx_try_ssm_conv_update_decode_fusion(
         const ggml_cgraph * cgraph,
         int concat_idx,
         const ggml_backend_hrx_device_context * device_context,
+        const ggml_tensor * deferred_state_scale,
+        const ggml_tensor * deferred_state_get_rows,
         ggml_backend_hrx_ssm_conv_update_decode_fusion * fusion) {
     *fusion = {};
     const ggml_tensor * concat = cgraph->nodes[concat_idx];
@@ -9698,13 +10929,47 @@ static bool ggml_backend_hrx_try_ssm_conv_update_decode_fusion(
 
     const ggml_tensor * state_view = nullptr;
     const ggml_tensor * state_update = nullptr;
+    const ggml_tensor * state_scale = nullptr;
+    const ggml_tensor * state_get_rows = nullptr;
     const ggml_tensor * ssm = nullptr;
     const ggml_tensor * out = nullptr;
     int state_view_idx = -1;
     int state_update_idx = -1;
+    int state_scale_idx = -1;
+    int state_get_rows_idx = -1;
     int ssm_idx = -1;
     int out_idx = -1;
     bool apply_silu = false;
+    std::vector<std::pair<int, ggml_op>> indexed_ops;
+    std::vector<const ggml_tensor *> deferred_state_nodes;
+
+    if (deferred_state_scale || deferred_state_get_rows) {
+        state_get_rows = ggml_backend_hrx_unwrap_reshape_view_src0(concat->src[0]);
+        state_get_rows_idx = ggml_backend_hrx_find_node_index(cgraph, state_get_rows, 0, concat_idx);
+        if (deferred_state_scale) {
+            state_scale = ggml_backend_hrx_find_alias_scale_before(
+                cgraph, concat_idx, state_get_rows, &state_scale_idx);
+        }
+        if (state_get_rows_idx < 0 ||
+            (deferred_state_get_rows && state_get_rows != deferred_state_get_rows) ||
+            (deferred_state_scale && (state_scale != deferred_state_scale || state_scale_idx < 0)) ||
+            !ggml_backend_hrx_supports_ssm_conv_update_gather_decode(
+                device_context, state_scale, state_get_rows, concat)) {
+            return false;
+        }
+
+        if (deferred_state_scale) {
+            indexed_ops.push_back({ state_scale_idx, GGML_OP_SCALE });
+            deferred_state_nodes.push_back(state_scale);
+        }
+        indexed_ops.push_back({ state_get_rows_idx, GGML_OP_GET_ROWS });
+        deferred_state_nodes.push_back(state_get_rows);
+        if (!ggml_backend_hrx_collect_reshape_view_chain(
+                cgraph, concat->src[0], state_get_rows, state_get_rows_idx + 1, concat_idx,
+                &indexed_ops, &deferred_state_nodes)) {
+            return false;
+        }
+    }
 
     for (int i = concat_idx + 1; i < cgraph->n_nodes; ++i) {
         const ggml_tensor * node = cgraph->nodes[i];
@@ -9764,49 +11029,125 @@ static bool ggml_backend_hrx_try_ssm_conv_update_decode_fusion(
         return false;
     }
 
-    std::array<std::pair<int, ggml_op>, 5> indexed_ops = {{
-        { concat_idx, GGML_OP_CONCAT },
-        { state_view_idx, GGML_OP_VIEW },
-        { state_update_idx, GGML_OP_CPY },
-        { ssm_idx, GGML_OP_SSM_CONV },
-        { out_idx, GGML_OP_UNARY },
-    }};
-    int count = 5;
-    if (!apply_silu) {
-        count = 4;
-        indexed_ops[4] = { std::numeric_limits<int>::max(), GGML_OP_NONE };
+    indexed_ops.push_back({ concat_idx, GGML_OP_CONCAT });
+    indexed_ops.push_back({ state_view_idx, GGML_OP_VIEW });
+    indexed_ops.push_back({ state_update_idx, GGML_OP_CPY });
+    indexed_ops.push_back({ ssm_idx, GGML_OP_SSM_CONV });
+    if (apply_silu) {
+        indexed_ops.push_back({ out_idx, GGML_OP_UNARY });
     }
-    std::sort(indexed_ops.begin(), indexed_ops.begin() + count);
-    std::array<int, 5> idxs = {};
-    std::array<ggml_op, 5> ops = {};
-    for (int i = 0; i < count; ++i) {
-        idxs[i] = indexed_ops[i].first;
-        ops[i] = indexed_ops[i].second;
+
+    std::sort(indexed_ops.begin(), indexed_ops.end());
+    for (size_t i = 1; i < indexed_ops.size(); ++i) {
+        if (indexed_ops[i].first == indexed_ops[i - 1].first) {
+            return false;
+        }
+    }
+    std::vector<int> idxs;
+    std::vector<ggml_op> ops;
+    idxs.reserve(indexed_ops.size());
+    ops.reserve(indexed_ops.size());
+    for (const auto & indexed_op : indexed_ops) {
+        idxs.push_back(indexed_op.first);
+        ops.push_back(indexed_op.second);
     }
     int outputs[2] = { state_update_idx, out_idx };
-    if (!ggml_can_fuse_subgraph_ext(cgraph, idxs.data(), count, ops.data(), outputs, 2)) {
+    const bool can_fuse = (deferred_state_scale || deferred_state_get_rows) ?
+        ggml_backend_hrx_can_fuse_state_gather_subgraph(cgraph, idxs, ops, outputs, 2) :
+        ggml_can_fuse_subgraph_ext(
+            cgraph, idxs.data(), static_cast<int>(idxs.size()), ops.data(), outputs, 2);
+    if (!can_fuse) {
         return false;
     }
 
     fusion->state_view = state_view;
     fusion->state_update = state_update;
+    fusion->state_scale = state_scale;
+    fusion->state_get_rows = state_get_rows;
     fusion->ssm = ssm;
     fusion->out = out;
+    fusion->deferred_state_nodes = std::move(deferred_state_nodes);
     fusion->apply_silu = apply_silu;
     return true;
 }
 
-static int ggml_backend_hrx_find_node_index(
+struct ggml_backend_hrx_deferred_ssm_state_gather {
+    const ggml_tensor * concat = nullptr;
+    const ggml_tensor * state_scale = nullptr;
+    const ggml_tensor * state_get_rows = nullptr;
+    std::vector<const ggml_tensor *> nodes;
+};
+
+static bool ggml_backend_hrx_try_defer_ssm_state_gather(
         const ggml_cgraph * cgraph,
-        const ggml_tensor * node,
-        int begin,
-        int end) {
-    for (int i = begin; i < end; ++i) {
-        if (cgraph->nodes[i] == node) {
-            return i;
-        }
+        int scale_idx,
+        const ggml_backend_hrx_device_context * device_context,
+        ggml_backend_hrx_deferred_ssm_state_gather * deferred) {
+    *deferred = {};
+    const ggml_tensor * scale = cgraph->nodes[scale_idx];
+    if (!scale ||
+        scale->op != GGML_OP_SCALE ||
+        ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_SSM_STATE_GATHER_FUSION") ||
+        device_context->ssm_conv_update_gather_provider.kind != ggml_backend_hrx_provider_kind::hsaco) {
+        return false;
     }
-    return -1;
+
+    const int search_end = std::min(cgraph->n_nodes, scale_idx + 96);
+    for (int concat_idx = scale_idx + 1; concat_idx < search_end; ++concat_idx) {
+        const ggml_tensor * concat = cgraph->nodes[concat_idx];
+        if (!concat || concat->op != GGML_OP_CONCAT) {
+            continue;
+        }
+        ggml_backend_hrx_ssm_conv_update_decode_fusion fusion;
+        if (!ggml_backend_hrx_try_ssm_conv_update_decode_fusion(
+                cgraph, concat_idx, device_context, scale, nullptr, &fusion)) {
+            continue;
+        }
+        deferred->concat = concat;
+        deferred->state_scale = fusion.state_scale;
+        deferred->state_get_rows = fusion.state_get_rows;
+        deferred->nodes = std::move(fusion.deferred_state_nodes);
+        return deferred->state_scale == scale && deferred->state_get_rows;
+    }
+
+    return false;
+}
+
+static bool ggml_backend_hrx_try_defer_ssm_direct_state_gather(
+        const ggml_cgraph * cgraph,
+        int state_get_rows_idx,
+        const ggml_backend_hrx_device_context * device_context,
+        ggml_backend_hrx_deferred_ssm_state_gather * deferred) {
+    *deferred = {};
+    const ggml_tensor * state_get_rows = cgraph->nodes[state_get_rows_idx];
+    if (!state_get_rows ||
+        state_get_rows->op != GGML_OP_GET_ROWS ||
+        ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_SSM_STATE_GATHER_FUSION") ||
+        device_context->ssm_conv_update_gather_provider.kind != ggml_backend_hrx_provider_kind::hsaco) {
+        return false;
+    }
+
+    const int search_end = std::min(cgraph->n_nodes, state_get_rows_idx + 96);
+    for (int concat_idx = state_get_rows_idx + 1; concat_idx < search_end; ++concat_idx) {
+        const ggml_tensor * concat = cgraph->nodes[concat_idx];
+        if (!concat || concat->op != GGML_OP_CONCAT ||
+            ggml_backend_hrx_unwrap_reshape_view_src0(concat->src[0]) != state_get_rows) {
+            continue;
+        }
+
+        ggml_backend_hrx_ssm_conv_update_decode_fusion fusion;
+        if (!ggml_backend_hrx_try_ssm_conv_update_decode_fusion(
+                cgraph, concat_idx, device_context, nullptr, state_get_rows, &fusion)) {
+            continue;
+        }
+
+        deferred->concat = concat;
+        deferred->state_get_rows = fusion.state_get_rows;
+        deferred->nodes = std::move(fusion.deferred_state_nodes);
+        return deferred->state_get_rows == state_get_rows;
+    }
+
+    return false;
 }
 
 static bool ggml_backend_hrx_gated_delta_net_prefix_view(
@@ -9944,6 +11285,253 @@ static const ggml_tensor * ggml_backend_hrx_find_gated_delta_net_state_update(
     return nullptr;
 }
 
+struct ggml_backend_hrx_deferred_gated_delta_net_state_gather {
+    const ggml_tensor * gdn = nullptr;
+    const ggml_tensor * state_scale = nullptr;
+    const ggml_tensor * state_get_rows = nullptr;
+    std::vector<const ggml_tensor *> nodes;
+};
+
+static bool ggml_backend_hrx_supports_gated_delta_net_state_gather_decode(
+        const ggml_backend_hrx_device_context * device_context,
+        const ggml_tensor * state_scale,
+        const ggml_tensor * state_get_rows,
+        const ggml_tensor * gdn) {
+    if (ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_GATED_DELTA_NET_STATE_GATHER_FUSION") ||
+        device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_provider.kind !=
+            ggml_backend_hrx_provider_kind::hsaco ||
+        !gdn ||
+        gdn->op != GGML_OP_GATED_DELTA_NET ||
+        !gdn->src[4] ||
+        !ggml_backend_hrx_supports_gated_delta_net_beta_sigmoid(device_context, gdn->src[4], gdn) ||
+        !ggml_backend_hrx_supports_get_rows_f32(device_context, state_get_rows) ||
+        ggml_backend_hrx_unwrap_reshape_view_src0(gdn->src[5]) != state_get_rows ||
+        !state_get_rows->src[1] ||
+        state_get_rows->src[1]->type != GGML_TYPE_I32 ||
+        ggml_nelements(state_get_rows->src[1]) != 1 ||
+        state_get_rows->src[0]->type != GGML_TYPE_F32 ||
+        !ggml_is_contiguous(gdn->src[5])) {
+        return false;
+    }
+
+    if (!state_scale) {
+        return true;
+    }
+
+    if (!ggml_backend_hrx_supports_scale(device_context, state_scale) ||
+        !ggml_backend_hrx_scale_aliases_get_rows_source(state_scale, state_get_rows) ||
+        ggml_nelements(state_scale) != ggml_nelements(state_get_rows->src[0])) {
+        return false;
+    }
+    return true;
+}
+
+static bool ggml_backend_hrx_state_gather_aliases_are_safe(
+        const ggml_cgraph * cgraph,
+        int begin,
+        int end,
+        const ggml_tensor * scale,
+        const ggml_tensor * selected_get_rows) {
+    for (int i = begin; i < end; ++i) {
+        const ggml_tensor * node = cgraph->nodes[i];
+        if (!node ||
+            node == selected_get_rows ||
+            node->op != GGML_OP_GET_ROWS ||
+            !ggml_backend_hrx_scale_aliases_get_rows_source(scale, node)) {
+            continue;
+        }
+        if (ggml_nelements(node) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool ggml_backend_hrx_try_defer_gated_delta_net_state_gather(
+        const ggml_cgraph * cgraph,
+        int scale_idx,
+        const ggml_backend_hrx_device_context * device_context,
+        ggml_backend_hrx_deferred_gated_delta_net_state_gather * deferred) {
+    *deferred = {};
+    const ggml_tensor * scale = cgraph->nodes[scale_idx];
+    if (!scale ||
+        scale->op != GGML_OP_SCALE ||
+        ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_GATED_DELTA_NET_STATE_GATHER_FUSION") ||
+        device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_provider.kind !=
+            ggml_backend_hrx_provider_kind::hsaco) {
+        return false;
+    }
+
+    const int search_end = std::min(cgraph->n_nodes, scale_idx + 96);
+    for (int gdn_idx = scale_idx + 1; gdn_idx < search_end; ++gdn_idx) {
+        const ggml_tensor * gdn = cgraph->nodes[gdn_idx];
+        if (!gdn || gdn->op != GGML_OP_GATED_DELTA_NET) {
+            continue;
+        }
+
+        const ggml_tensor * state_get_rows = ggml_backend_hrx_unwrap_reshape_view_src0(gdn->src[5]);
+        int state_scale_idx = -1;
+        const ggml_tensor * state_scale =
+            ggml_backend_hrx_find_alias_scale_before(cgraph, gdn_idx, state_get_rows, &state_scale_idx);
+        const int state_get_rows_idx = ggml_backend_hrx_find_node_index(cgraph, state_get_rows, 0, gdn_idx);
+        const int beta_idx = ggml_backend_hrx_find_node_index(cgraph, gdn->src[4], scale_idx + 1, gdn_idx + 1);
+        const ggml_tensor * state_update =
+            ggml_backend_hrx_find_gated_delta_net_state_update(cgraph, gdn_idx, device_context);
+        const int state_update_idx = state_update ?
+            ggml_backend_hrx_find_node_index(cgraph, state_update, gdn_idx + 1, cgraph->n_nodes) : -1;
+        const int state_view_idx = state_update ?
+            ggml_backend_hrx_find_node_index(cgraph, state_update->src[0], gdn_idx + 1, cgraph->n_nodes) : -1;
+
+        if (state_scale != scale ||
+            state_scale_idx != scale_idx ||
+            state_get_rows_idx < 0 ||
+            beta_idx < 0 ||
+            state_update_idx < 0 ||
+            state_view_idx < 0 ||
+            !ggml_backend_hrx_supports_gated_delta_net_state_gather_decode(
+                device_context, state_scale, state_get_rows, gdn) ||
+            !ggml_backend_hrx_state_gather_aliases_are_safe(
+                cgraph, scale_idx + 1, gdn_idx, state_scale, state_get_rows)) {
+            continue;
+        }
+
+        std::vector<std::pair<int, ggml_op>> indexed_ops;
+        std::vector<const ggml_tensor *> deferred_state_nodes;
+        indexed_ops.push_back({ state_scale_idx, GGML_OP_SCALE });
+        indexed_ops.push_back({ state_get_rows_idx, GGML_OP_GET_ROWS });
+        deferred_state_nodes.push_back(state_scale);
+        deferred_state_nodes.push_back(state_get_rows);
+        if (!ggml_backend_hrx_collect_reshape_view_chain(
+                cgraph, gdn->src[5], state_get_rows, state_get_rows_idx + 1, gdn_idx,
+                &indexed_ops, &deferred_state_nodes)) {
+            continue;
+        }
+
+        indexed_ops.push_back({ beta_idx, GGML_OP_UNARY });
+        indexed_ops.push_back({ gdn_idx, GGML_OP_GATED_DELTA_NET });
+        indexed_ops.push_back({ state_view_idx, GGML_OP_VIEW });
+        indexed_ops.push_back({ state_update_idx, GGML_OP_CPY });
+        std::sort(indexed_ops.begin(), indexed_ops.end());
+        bool duplicate = false;
+        for (size_t i = 1; i < indexed_ops.size(); ++i) {
+            duplicate = duplicate || indexed_ops[i].first == indexed_ops[i - 1].first;
+        }
+        if (duplicate) {
+            continue;
+        }
+
+        std::vector<int> idxs;
+        std::vector<ggml_op> ops;
+        idxs.reserve(indexed_ops.size());
+        ops.reserve(indexed_ops.size());
+        for (const auto & indexed_op : indexed_ops) {
+            idxs.push_back(indexed_op.first);
+            ops.push_back(indexed_op.second);
+        }
+        int outputs[2] = { gdn_idx, state_update_idx };
+        if (!ggml_backend_hrx_can_fuse_state_gather_subgraph(
+                cgraph, idxs, ops, outputs, 2)) {
+            continue;
+        }
+
+        deferred->gdn = gdn;
+        deferred->state_scale = state_scale;
+        deferred->state_get_rows = state_get_rows;
+        deferred->nodes = std::move(deferred_state_nodes);
+        return true;
+    }
+
+    return false;
+}
+
+static bool ggml_backend_hrx_try_defer_gated_delta_net_direct_state_gather(
+        const ggml_cgraph * cgraph,
+        int state_get_rows_idx,
+        const ggml_backend_hrx_device_context * device_context,
+        ggml_backend_hrx_deferred_gated_delta_net_state_gather * deferred) {
+    *deferred = {};
+    const ggml_tensor * state_get_rows = cgraph->nodes[state_get_rows_idx];
+    if (!state_get_rows ||
+        state_get_rows->op != GGML_OP_GET_ROWS ||
+        ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_GATED_DELTA_NET_STATE_GATHER_FUSION") ||
+        device_context->gated_delta_net_s128_h32_qk16_tok1_nokda_beta_sigmoid_gather_provider.kind !=
+            ggml_backend_hrx_provider_kind::hsaco) {
+        return false;
+    }
+
+    const int search_end = std::min(cgraph->n_nodes, state_get_rows_idx + 96);
+    for (int gdn_idx = state_get_rows_idx + 1; gdn_idx < search_end; ++gdn_idx) {
+        const ggml_tensor * gdn = cgraph->nodes[gdn_idx];
+        if (!gdn || gdn->op != GGML_OP_GATED_DELTA_NET) {
+            continue;
+        }
+
+        if (ggml_backend_hrx_unwrap_reshape_view_src0(gdn->src[5]) != state_get_rows) {
+            continue;
+        }
+
+        const int beta_idx = ggml_backend_hrx_find_node_index(cgraph, gdn->src[4], state_get_rows_idx + 1, gdn_idx + 1);
+        const ggml_tensor * state_update =
+            ggml_backend_hrx_find_gated_delta_net_state_update(cgraph, gdn_idx, device_context);
+        const int state_update_idx = state_update ?
+            ggml_backend_hrx_find_node_index(cgraph, state_update, gdn_idx + 1, cgraph->n_nodes) : -1;
+        const int state_view_idx = state_update ?
+            ggml_backend_hrx_find_node_index(cgraph, state_update->src[0], gdn_idx + 1, cgraph->n_nodes) : -1;
+
+        if (beta_idx < 0 ||
+            state_update_idx < 0 ||
+            state_view_idx < 0 ||
+            !ggml_backend_hrx_supports_gated_delta_net_state_gather_decode(
+                device_context, nullptr, state_get_rows, gdn)) {
+            continue;
+        }
+
+        std::vector<std::pair<int, ggml_op>> indexed_ops;
+        std::vector<const ggml_tensor *> deferred_state_nodes;
+        indexed_ops.push_back({ state_get_rows_idx, GGML_OP_GET_ROWS });
+        deferred_state_nodes.push_back(state_get_rows);
+        if (!ggml_backend_hrx_collect_reshape_view_chain(
+                cgraph, gdn->src[5], state_get_rows, state_get_rows_idx + 1, gdn_idx,
+                &indexed_ops, &deferred_state_nodes)) {
+            continue;
+        }
+
+        indexed_ops.push_back({ beta_idx, GGML_OP_UNARY });
+        indexed_ops.push_back({ gdn_idx, GGML_OP_GATED_DELTA_NET });
+        indexed_ops.push_back({ state_view_idx, GGML_OP_VIEW });
+        indexed_ops.push_back({ state_update_idx, GGML_OP_CPY });
+        std::sort(indexed_ops.begin(), indexed_ops.end());
+        bool duplicate = false;
+        for (size_t i = 1; i < indexed_ops.size(); ++i) {
+            duplicate = duplicate || indexed_ops[i].first == indexed_ops[i - 1].first;
+        }
+        if (duplicate) {
+            continue;
+        }
+
+        std::vector<int> idxs;
+        std::vector<ggml_op> ops;
+        idxs.reserve(indexed_ops.size());
+        ops.reserve(indexed_ops.size());
+        for (const auto & indexed_op : indexed_ops) {
+            idxs.push_back(indexed_op.first);
+            ops.push_back(indexed_op.second);
+        }
+        int outputs[2] = { gdn_idx, state_update_idx };
+        if (!ggml_backend_hrx_can_fuse_state_gather_subgraph(
+                cgraph, idxs, ops, outputs, 2)) {
+            continue;
+        }
+
+        deferred->gdn = gdn;
+        deferred->state_get_rows = state_get_rows;
+        deferred->nodes = std::move(deferred_state_nodes);
+        return true;
+    }
+
+    return false;
+}
+
 struct ggml_backend_hrx_active_graph_guard {
     ggml_backend_hrx_context * context = nullptr;
     ggml_backend_hrx_context * previous_context = nullptr;
@@ -9985,14 +11573,86 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
     }
     ggml_backend_hrx_active_graph_guard active_graph_guard(context);
     std::vector<const ggml_tensor *> fused_ssm_conv_update_decode_nodes;
+    std::vector<const ggml_tensor *> fused_mul_mat_set_rows_nodes;
+    std::vector<ggml_backend_hrx_deferred_ssm_state_gather> deferred_ssm_state_gathers;
+    std::vector<ggml_backend_hrx_deferred_gated_delta_net_state_gather> deferred_gated_delta_net_state_gathers;
 
     for (int i = 0; i < cgraph->n_nodes; ++i) {
         const ggml_tensor * node = cgraph->nodes[i];
         g_hrx_active_graph_node = node;
+        if (ggml_backend_hrx_trace_graph_enabled()) {
+            std::fprintf(
+                stderr,
+                "HRX graph node=%d op=%s type=%s name=%s ne=[%" PRId64 ",%" PRId64 ",%" PRId64 ",%" PRId64
+                "] src0=%s src1=%s src2=%s src3=%s src4=%s src5=%s flags=0x%x\n",
+                i,
+                ggml_op_desc(node),
+                ggml_type_name(node->type),
+                node->name,
+                node->ne[0],
+                node->ne[1],
+                node->ne[2],
+                node->ne[3],
+                node->src[0] ? node->src[0]->name : "",
+                node->src[1] ? node->src[1]->name : "",
+                node->src[2] ? node->src[2]->name : "",
+                node->src[3] ? node->src[3]->name : "",
+                node->src[4] ? node->src[4]->name : "",
+                node->src[5] ? node->src[5]->name : "",
+                static_cast<unsigned>(node->flags));
+        }
         if (std::find(
                 fused_ssm_conv_update_decode_nodes.begin(),
                 fused_ssm_conv_update_decode_nodes.end(),
                 node) != fused_ssm_conv_update_decode_nodes.end()) {
+            continue;
+        }
+        if (std::find(
+                fused_mul_mat_set_rows_nodes.begin(),
+                fused_mul_mat_set_rows_nodes.end(),
+                node) != fused_mul_mat_set_rows_nodes.end()) {
+            continue;
+        }
+        ggml_backend_hrx_deferred_ssm_state_gather deferred_state_gather;
+        if (node->op == GGML_OP_SCALE &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
+            ggml_backend_hrx_try_defer_ssm_state_gather(
+                cgraph, i, context->device_context, &deferred_state_gather)) {
+            for (const ggml_tensor * fused_node : deferred_state_gather.nodes) {
+                fused_ssm_conv_update_decode_nodes.push_back(fused_node);
+            }
+            deferred_ssm_state_gathers.push_back(std::move(deferred_state_gather));
+            continue;
+        }
+        ggml_backend_hrx_deferred_gated_delta_net_state_gather deferred_gdn_state_gather;
+        if (node->op == GGML_OP_SCALE &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
+            ggml_backend_hrx_try_defer_gated_delta_net_state_gather(
+                cgraph, i, context->device_context, &deferred_gdn_state_gather)) {
+            for (const ggml_tensor * fused_node : deferred_gdn_state_gather.nodes) {
+                fused_ssm_conv_update_decode_nodes.push_back(fused_node);
+            }
+            deferred_gated_delta_net_state_gathers.push_back(std::move(deferred_gdn_state_gather));
+            continue;
+        }
+        if (node->op == GGML_OP_GET_ROWS &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
+            ggml_backend_hrx_try_defer_ssm_direct_state_gather(
+                cgraph, i, context->device_context, &deferred_state_gather)) {
+            for (const ggml_tensor * fused_node : deferred_state_gather.nodes) {
+                fused_ssm_conv_update_decode_nodes.push_back(fused_node);
+            }
+            deferred_ssm_state_gathers.push_back(std::move(deferred_state_gather));
+            continue;
+        }
+        if (node->op == GGML_OP_GET_ROWS &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
+            ggml_backend_hrx_try_defer_gated_delta_net_direct_state_gather(
+                cgraph, i, context->device_context, &deferred_gdn_state_gather)) {
+            for (const ggml_tensor * fused_node : deferred_gdn_state_gather.nodes) {
+                fused_ssm_conv_update_decode_nodes.push_back(fused_node);
+            }
+            deferred_gated_delta_net_state_gathers.push_back(std::move(deferred_gdn_state_gather));
             continue;
         }
         ggml_backend_hrx_topk_moe_fusion topk_moe;
@@ -10007,13 +11667,25 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
             continue;
         }
         ggml_backend_hrx_ssm_conv_update_decode_fusion ssm_update;
+        const ggml_tensor * deferred_state_scale = nullptr;
+        const ggml_tensor * deferred_state_get_rows = nullptr;
+        for (const auto & deferred : deferred_ssm_state_gathers) {
+            if (deferred.concat == node) {
+                deferred_state_scale = deferred.state_scale;
+                deferred_state_get_rows = deferred.state_get_rows;
+                break;
+            }
+        }
         if (node->op == GGML_OP_CONCAT &&
             !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
-            ggml_backend_hrx_try_ssm_conv_update_decode_fusion(cgraph, i, context->device_context, &ssm_update)) {
+            ggml_backend_hrx_try_ssm_conv_update_decode_fusion(
+                cgraph, i, context->device_context, deferred_state_scale, deferred_state_get_rows, &ssm_update)) {
             if (ggml_backend_hrx_dispatch_ssm_conv_update(
                     context,
                     node,
                     ssm_update.state_update,
+                    ssm_update.state_scale,
+                    ssm_update.state_get_rows,
                     ssm_update.ssm,
                     ssm_update.apply_silu ? ssm_update.out : nullptr,
                     ssm_update.apply_silu) != GGML_STATUS_SUCCESS) {
@@ -10138,6 +11810,109 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
         }
         if (node->op == GGML_OP_MUL_MAT &&
             !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_Q6_K_SILU_MUL_FUSION")) {
+            const int silu_idx = ggml_backend_hrx_next_non_metadata_node_index(cgraph, i + 1, cgraph->n_nodes);
+            const ggml_tensor * silu = silu_idx >= 0 ? cgraph->nodes[silu_idx] : nullptr;
+            const int mul_idx = silu_idx >= 0 ?
+                ggml_backend_hrx_next_non_metadata_node_index(cgraph, silu_idx + 1, cgraph->n_nodes) : -1;
+            const ggml_tensor * mul = mul_idx >= 0 ? cgraph->nodes[mul_idx] : nullptr;
+            const ggml_tensor * mul_src = nullptr;
+            if (ggml_backend_hrx_supports_mul_mat_vec_q6_k_silu_mul(
+                    context->device_context, node, silu, mul, &mul_src)) {
+                std::vector<std::pair<int, ggml_op>> indexed_ops;
+                std::vector<const ggml_tensor *> metadata_nodes;
+                indexed_ops.push_back({ i, GGML_OP_MUL_MAT });
+                if (ggml_backend_hrx_collect_reshape_view_chain(
+                        cgraph, silu->src[0], node, i + 1, silu_idx, &indexed_ops, &metadata_nodes)) {
+                    indexed_ops.push_back({ silu_idx, GGML_OP_UNARY });
+                    indexed_ops.push_back({ mul_idx, GGML_OP_MUL });
+                    std::sort(indexed_ops.begin(), indexed_ops.end());
+                    bool duplicate = false;
+                    for (size_t idx = 1; idx < indexed_ops.size(); ++idx) {
+                        duplicate = duplicate || indexed_ops[idx].first == indexed_ops[idx - 1].first;
+                    }
+                    if (!duplicate) {
+                        std::vector<int> idxs;
+                        std::vector<ggml_op> ops;
+                        idxs.reserve(indexed_ops.size());
+                        ops.reserve(indexed_ops.size());
+                        for (const auto & indexed_op : indexed_ops) {
+                            idxs.push_back(indexed_op.first);
+                            ops.push_back(indexed_op.second);
+                        }
+                        int outputs[1] = { mul_idx };
+                        if (ggml_can_fuse_subgraph_ext(
+                                cgraph, idxs.data(), static_cast<int>(idxs.size()), ops.data(), outputs, 1)) {
+                            if (ggml_backend_hrx_dispatch_mul_mat_vec_q6_k_silu_mul(
+                                    context, node, mul_src, mul) != GGML_STATUS_SUCCESS) {
+                                return GGML_STATUS_FAILED;
+                            }
+                            i = mul_idx;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        if (node->op == GGML_OP_MUL_MAT &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_MUL_MAT_SET_ROWS_FUSION")) {
+            const int end = std::min(cgraph->n_nodes, i + 96);
+            bool dispatched_mul_mat_set_rows = false;
+            for (int set_rows_idx = i + 1; set_rows_idx < end; ++set_rows_idx) {
+                const ggml_tensor * set_rows = cgraph->nodes[set_rows_idx];
+                if (!set_rows || set_rows->op != GGML_OP_SET_ROWS) {
+                    continue;
+                }
+                if (!ggml_backend_hrx_supports_mul_mat_vec_bf16_set_rows_f16(
+                        context->device_context, node, set_rows->src[0], set_rows)) {
+                    continue;
+                }
+
+                std::vector<std::pair<int, ggml_op>> indexed_ops;
+                std::vector<const ggml_tensor *> metadata_nodes;
+                indexed_ops.push_back({ i, GGML_OP_MUL_MAT });
+                if (!ggml_backend_hrx_collect_reshape_view_chain(
+                        cgraph, set_rows->src[0], node, i + 1, set_rows_idx, &indexed_ops, &metadata_nodes)) {
+                    continue;
+                }
+                indexed_ops.push_back({ set_rows_idx, GGML_OP_SET_ROWS });
+                std::sort(indexed_ops.begin(), indexed_ops.end());
+                bool duplicate = false;
+                for (size_t idx = 1; idx < indexed_ops.size(); ++idx) {
+                    duplicate = duplicate || indexed_ops[idx].first == indexed_ops[idx - 1].first;
+                }
+                if (duplicate) {
+                    continue;
+                }
+
+                std::vector<int> idxs;
+                std::vector<ggml_op> ops;
+                idxs.reserve(indexed_ops.size());
+                ops.reserve(indexed_ops.size());
+                for (const auto & indexed_op : indexed_ops) {
+                    idxs.push_back(indexed_op.first);
+                    ops.push_back(indexed_op.second);
+                }
+                int outputs[1] = { set_rows_idx };
+                if (!ggml_can_fuse_subgraph_ext(
+                        cgraph, idxs.data(), static_cast<int>(idxs.size()), ops.data(), outputs, 1)) {
+                    continue;
+                }
+                if (ggml_backend_hrx_dispatch_mul_mat_vec_bf16_set_rows_f16(context, node, set_rows) !=
+                    GGML_STATUS_SUCCESS) {
+                    return GGML_STATUS_FAILED;
+                }
+                fused_mul_mat_set_rows_nodes.push_back(set_rows);
+                dispatched_mul_mat_set_rows = true;
+                break;
+            }
+            if (dispatched_mul_mat_set_rows) {
+                continue;
+            }
+        }
+        if (node->op == GGML_OP_MUL_MAT &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
             !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_MUL_MAT_SWIGLU_FUSION") &&
             i + 2 < cgraph->n_nodes &&
             cgraph->nodes[i + 1]->op == GGML_OP_MUL_MAT &&
@@ -10252,6 +12027,24 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
                 continue;
             }
         }
+        if (node->op == GGML_OP_UNARY &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
+            !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_SIGMOID_MUL_FUSION") &&
+            i + 1 < cgraph->n_nodes &&
+            cgraph->nodes[i + 1]->op == GGML_OP_MUL) {
+            const ggml_tensor * attn = nullptr;
+            const ggml_tensor * gate = nullptr;
+            const ggml_tensor * mul = cgraph->nodes[i + 1];
+            if (ggml_backend_hrx_supports_sigmoid_mul_f32(
+                    context->device_context, node, mul, &attn, &gate) &&
+                ggml_can_fuse_subgraph(cgraph, i, { GGML_OP_UNARY, GGML_OP_MUL }, { i + 1 })) {
+                if (ggml_backend_hrx_dispatch_sigmoid_mul_f32(context, attn, gate, mul) != GGML_STATUS_SUCCESS) {
+                    return GGML_STATUS_FAILED;
+                }
+                i++;
+                continue;
+            }
+        }
         if (node->op == GGML_OP_MUL &&
             !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
             i + 2 < cgraph->n_nodes &&
@@ -10349,6 +12142,35 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
                     continue;
                 }
             }
+            const int single_sigmoid_idx = ggml_backend_hrx_next_non_metadata_node_index(cgraph, i + 1, cgraph->n_nodes);
+            const ggml_tensor * single_sigmoid = single_sigmoid_idx >= 0 ? cgraph->nodes[single_sigmoid_idx] : nullptr;
+            const int single_mul_idx = single_sigmoid_idx >= 0 ?
+                ggml_backend_hrx_next_non_metadata_node_index(cgraph, single_sigmoid_idx + 1, cgraph->n_nodes) : -1;
+            const ggml_tensor * single_mul = single_mul_idx >= 0 ? cgraph->nodes[single_mul_idx] : nullptr;
+            const ggml_tensor * single_attn = nullptr;
+            if (single_sigmoid &&
+                single_sigmoid->op == GGML_OP_UNARY &&
+                ggml_get_unary_op(single_sigmoid) == GGML_UNARY_OP_SIGMOID &&
+                single_mul &&
+                single_mul->op == GGML_OP_MUL) {
+                single_attn = single_mul->src[0] == single_sigmoid ? single_mul->src[1] :
+                    (single_mul->src[1] == single_sigmoid ? single_mul->src[0] : nullptr);
+            }
+            if (single_attn &&
+                ggml_backend_hrx_supports_sigmoid_mul_gate_strided(
+                    context->device_context, single_attn, node, single_sigmoid, single_mul)) {
+                int idxs[3] = { i, single_sigmoid_idx, single_mul_idx };
+                ggml_op ops[3] = { GGML_OP_CONT, GGML_OP_UNARY, GGML_OP_MUL };
+                int outputs[1] = { single_mul_idx };
+                if (ggml_can_fuse_subgraph_ext(cgraph, idxs, 3, ops, outputs, 1)) {
+                    if (ggml_backend_hrx_dispatch_sigmoid_mul_gate_strided(context, single_attn, node, single_mul) !=
+                            GGML_STATUS_SUCCESS) {
+                        return GGML_STATUS_FAILED;
+                    }
+                    i = single_mul_idx;
+                    continue;
+                }
+            }
         }
         if (node->op == GGML_OP_SSM_CONV &&
             !ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
@@ -10405,6 +12227,15 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
                 ggml_backend_hrx_supports_gated_delta_net_beta_sigmoid(
                     context->device_context, node, cgraph->nodes[gdn_idx])) {
                 const ggml_tensor * gdn = cgraph->nodes[gdn_idx];
+                const ggml_tensor * deferred_gdn_state_scale = nullptr;
+                const ggml_tensor * deferred_gdn_state_get_rows = nullptr;
+                for (const auto & deferred : deferred_gated_delta_net_state_gathers) {
+                    if (deferred.gdn == gdn) {
+                        deferred_gdn_state_scale = deferred.state_scale;
+                        deferred_gdn_state_get_rows = deferred.state_get_rows;
+                        break;
+                    }
+                }
                 const ggml_tensor * state_update =
                     ggml_backend_hrx_find_gated_delta_net_state_update(cgraph, gdn_idx, context->device_context);
                 const int state_update_idx = state_update ?
@@ -10417,13 +12248,20 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
                 const int count = state_update ? 4 : 2;
                 const int output_count = state_update ? 2 : 1;
                 if ((!state_update || (state_update_idx >= 0 && state_view_idx >= 0)) &&
-                    ggml_can_fuse_subgraph_ext(cgraph, idxs, count, ops, outputs, output_count)) {
+                    (deferred_gdn_state_get_rows ||
+                     ggml_can_fuse_subgraph_ext(cgraph, idxs, count, ops, outputs, output_count))) {
                     const bool preserve_state_tail =
                         state_update &&
                         !ggml_backend_hrx_gated_delta_net_state_tail_dead_except_update(
                             cgraph, gdn_idx, state_view_idx, state_update_idx);
                     if (ggml_backend_hrx_dispatch_gated_delta_net(
-                            context, gdn, state_update, true, preserve_state_tail) !=
+                            context,
+                            gdn,
+                            state_update,
+                            true,
+                            preserve_state_tail,
+                            deferred_gdn_state_scale,
+                            deferred_gdn_state_get_rows) !=
                             GGML_STATUS_SUCCESS) {
                         return GGML_STATUS_FAILED;
                     }
@@ -10508,6 +12346,18 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
                 if (ggml_nelements(node) == 0) {
                     break;
                 }
+                if (!ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_FUSION") &&
+                    i + 1 < cgraph->n_nodes &&
+                    cgraph->nodes[i + 1]->op == GGML_OP_GET_ROWS &&
+                    ggml_backend_hrx_supports_scale_get_rows_f32_nr1(context, node, cgraph->nodes[i + 1]) &&
+                    ggml_can_fuse_subgraph(cgraph, i, { GGML_OP_SCALE, GGML_OP_GET_ROWS }, { i + 1 })) {
+                    if (ggml_backend_hrx_dispatch_scale_get_rows_f32_nr1(context, node, cgraph->nodes[i + 1]) !=
+                        GGML_STATUS_SUCCESS) {
+                        return GGML_STATUS_FAILED;
+                    }
+                    i++;
+                    break;
+                }
                 if (!ggml_backend_hrx_supports_scale(context->device_context, node)) {
                     GGML_LOG_ERROR("%s: SCALE shape/type/layout is unsupported\n", __func__);
                     return GGML_STATUS_FAILED;
@@ -10538,15 +12388,6 @@ static ggml_status ggml_backend_hrx_graph_compute(ggml_backend_t backend, ggml_c
                 if (ggml_backend_hrx_env_enabled("GGML_HRX_DISABLE_SET_ROWS")) {
                     GGML_LOG_ERROR("%s: SET_ROWS disabled by GGML_HRX_DISABLE_SET_ROWS\n", __func__);
                     return GGML_STATUS_FAILED;
-                }
-                if (const ggml_tensor * mul_mat = ggml_backend_hrx_unwrap_reshape_view_src0(node->src[0]);
-                    ggml_backend_hrx_supports_mul_mat_vec_bf16_set_rows_f16(
-                        context->device_context, mul_mat, node->src[0], node)) {
-                    if (ggml_backend_hrx_dispatch_mul_mat_vec_bf16_set_rows_f16(context, mul_mat, node) !=
-                        GGML_STATUS_SUCCESS) {
-                        return GGML_STATUS_FAILED;
-                    }
-                    break;
                 }
                 if (!ggml_backend_hrx_supports_set_rows(context->device_context, node)) {
                     GGML_LOG_ERROR("%s: SET_ROWS shape/type/layout is unsupported\n", __func__);
@@ -10990,6 +12831,7 @@ static std::unique_ptr<ggml_backend_hrx_reg_context> ggml_backend_hrx_create_reg
         (void) ggml_backend_hrx_load_set_rows_q4_0_provider(device_context.get());
         (void) ggml_backend_hrx_load_silu_provider(device_context.get());
         (void) ggml_backend_hrx_load_sigmoid_provider(device_context.get());
+        (void) ggml_backend_hrx_load_sigmoid_mul_provider(device_context.get());
         (void) ggml_backend_hrx_load_sigmoid_mul_strided_provider(device_context.get());
         (void) ggml_backend_hrx_load_softplus_provider(device_context.get());
         (void) ggml_backend_hrx_load_swiglu_provider(device_context.get());

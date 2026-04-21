@@ -46,13 +46,50 @@ struct hrx_mul_mat_id_q4_k_swiglu_grouped_constants {
 
 static __device__ __forceinline__ void hrx_get_scale_min_k4_id_swiglu(
         int j, const uint8_t * q, uint8_t * d, uint8_t * m) {
+    const uint32_t scales0 = *reinterpret_cast<const uint32_t *>(q);
+    const uint32_t mins0 = *reinterpret_cast<const uint32_t *>(q + 4);
     if (j < 4) {
-        *d = q[j] & 63;
-        *m = q[j + 4] & 63;
+        *d = static_cast<uint8_t>((scales0 >> (8 * j)) & 63u);
+        *m = static_cast<uint8_t>((mins0 >> (8 * j)) & 63u);
     } else {
-        *d = (q[j + 4] & 0xF) | ((q[j - 4] >> 6) << 4);
-        *m = (q[j + 4] >> 4) | ((q[j] >> 6) << 4);
+        const int k = j - 4;
+        const uint32_t scale8 = *reinterpret_cast<const uint32_t *>(q + 8);
+        const uint32_t packed = (scale8 >> (8 * k)) & 0xFFu;
+        *d = static_cast<uint8_t>((packed & 0x0Fu) | (((scales0 >> (8 * k + 6)) & 3u) << 4));
+        *m = static_cast<uint8_t>((packed >> 4) | (((mins0 >> (8 * k + 6)) & 3u) << 4));
     }
+}
+
+static __device__ __forceinline__ void hrx_q4_k_swiglu_scale_min4(
+        const uint8_t * scales,
+        int v_im,
+        float d,
+        float dmin,
+        float & d0,
+        float & d1,
+        float & d2,
+        float & d3,
+        float & min0,
+        float & min1,
+        float & min2,
+        float & min3) {
+    const uint16_t * scales16 = reinterpret_cast<const uint16_t *>(scales);
+    const uint32_t scale0 = scales16[v_im];
+    const uint32_t scale4 = scales16[v_im + 2];
+    const uint32_t scale8_raw = scales16[v_im + 4];
+    const uint32_t scale_0_4_l = (scale4 << 16) | scale0;
+    const uint32_t scale_0_4_h = (scale_0_4_l & 0xC0C0C0C0u) >> 2;
+    const uint32_t scale_0_4_l6 = scale_0_4_l & 0x3F3F3F3Fu;
+    const uint32_t scale8 = (((scale8_raw << 12) | scale8_raw) & 0x0F0F0F0Fu) | scale_0_4_h;
+
+    d0 = d * static_cast<float>((scale_0_4_l6 >> 0) & 0xFFu);
+    d1 = d * static_cast<float>((scale_0_4_l6 >> 8) & 0xFFu);
+    d2 = d * static_cast<float>((scale8 >> 0) & 0xFFu);
+    d3 = d * static_cast<float>((scale8 >> 8) & 0xFFu);
+    min0 = dmin * static_cast<float>((scale_0_4_l6 >> 16) & 0xFFu);
+    min1 = dmin * static_cast<float>((scale_0_4_l6 >> 24) & 0xFFu);
+    min2 = dmin * static_cast<float>((scale8 >> 16) & 0xFFu);
+    min3 = dmin * static_cast<float>((scale8 >> 24) & 0xFFu);
 }
 
 template <int I>
@@ -1250,10 +1287,6 @@ static __device__ __forceinline__ void hrx_mul_mat_id_q4_k_swiglu_packed_f32_imp
     const int l0 = 4 * (2 * ir + v_in);
     const int q_offset = 32 * v_im + l0;
     const int y_offset = 64 * v_im + l0;
-    const int g0 = 2 * v_im;
-    const int g1 = g0 + 1;
-    const int g2 = g0 + 4;
-    const int g3 = g2 + 1;
     constexpr int block_slots = WG_SIZE / 16;
 
     for (long long block_idx = block_slot; block_idx < blocks_per_row; block_idx += block_slots) {
@@ -1262,52 +1295,32 @@ static __device__ __forceinline__ void hrx_mul_mat_id_q4_k_swiglu_packed_f32_imp
         const hrx_block_q4_K_id_swiglu * up_block = reinterpret_cast<const hrx_block_q4_K_id_swiglu *>(
             up_row_base + block_idx * sizeof(hrx_block_q4_K_id_swiglu));
 
-        uint8_t gate_sc0 = 0;
-        uint8_t gate_m0 = 0;
-        uint8_t gate_sc1 = 0;
-        uint8_t gate_m1 = 0;
-        uint8_t gate_sc2 = 0;
-        uint8_t gate_m2 = 0;
-        uint8_t gate_sc3 = 0;
-        uint8_t gate_m3 = 0;
-        uint8_t up_sc0 = 0;
-        uint8_t up_m0 = 0;
-        uint8_t up_sc1 = 0;
-        uint8_t up_m1 = 0;
-        uint8_t up_sc2 = 0;
-        uint8_t up_m2 = 0;
-        uint8_t up_sc3 = 0;
-        uint8_t up_m3 = 0;
-        hrx_get_scale_min_k4_id_swiglu(g0, gate_block->scales, &gate_sc0, &gate_m0);
-        hrx_get_scale_min_k4_id_swiglu(g1, gate_block->scales, &gate_sc1, &gate_m1);
-        hrx_get_scale_min_k4_id_swiglu(g2, gate_block->scales, &gate_sc2, &gate_m2);
-        hrx_get_scale_min_k4_id_swiglu(g3, gate_block->scales, &gate_sc3, &gate_m3);
-        hrx_get_scale_min_k4_id_swiglu(g0, up_block->scales, &up_sc0, &up_m0);
-        hrx_get_scale_min_k4_id_swiglu(g1, up_block->scales, &up_sc1, &up_m1);
-        hrx_get_scale_min_k4_id_swiglu(g2, up_block->scales, &up_sc2, &up_m2);
-        hrx_get_scale_min_k4_id_swiglu(g3, up_block->scales, &up_sc3, &up_m3);
-
         const float gate_d = __half2float(__ushort_as_half(gate_block->d));
         const float gate_dmin = __half2float(__ushort_as_half(gate_block->dmin));
-        const float gate_d0 = gate_d * static_cast<float>(gate_sc0);
-        const float gate_d1 = gate_d * static_cast<float>(gate_sc1);
-        const float gate_d2 = gate_d * static_cast<float>(gate_sc2);
-        const float gate_d3 = gate_d * static_cast<float>(gate_sc3);
-        const float gate_min0 = gate_dmin * static_cast<float>(gate_m0);
-        const float gate_min1 = gate_dmin * static_cast<float>(gate_m1);
-        const float gate_min2 = gate_dmin * static_cast<float>(gate_m2);
-        const float gate_min3 = gate_dmin * static_cast<float>(gate_m3);
-
         const float up_d = __half2float(__ushort_as_half(up_block->d));
         const float up_dmin = __half2float(__ushort_as_half(up_block->dmin));
-        const float up_d0 = up_d * static_cast<float>(up_sc0);
-        const float up_d1 = up_d * static_cast<float>(up_sc1);
-        const float up_d2 = up_d * static_cast<float>(up_sc2);
-        const float up_d3 = up_d * static_cast<float>(up_sc3);
-        const float up_min0 = up_dmin * static_cast<float>(up_m0);
-        const float up_min1 = up_dmin * static_cast<float>(up_m1);
-        const float up_min2 = up_dmin * static_cast<float>(up_m2);
-        const float up_min3 = up_dmin * static_cast<float>(up_m3);
+        float gate_d0 = 0.0f;
+        float gate_d1 = 0.0f;
+        float gate_d2 = 0.0f;
+        float gate_d3 = 0.0f;
+        float gate_min0 = 0.0f;
+        float gate_min1 = 0.0f;
+        float gate_min2 = 0.0f;
+        float gate_min3 = 0.0f;
+        float up_d0 = 0.0f;
+        float up_d1 = 0.0f;
+        float up_d2 = 0.0f;
+        float up_d3 = 0.0f;
+        float up_min0 = 0.0f;
+        float up_min1 = 0.0f;
+        float up_min2 = 0.0f;
+        float up_min3 = 0.0f;
+        hrx_q4_k_swiglu_scale_min4(
+            gate_block->scales, v_im, gate_d, gate_dmin,
+            gate_d0, gate_d1, gate_d2, gate_d3, gate_min0, gate_min1, gate_min2, gate_min3);
+        hrx_q4_k_swiglu_scale_min4(
+            up_block->scales, v_im, up_d, up_dmin,
+            up_d0, up_d1, up_d2, up_d3, up_min0, up_min1, up_min2, up_min3);
 
         const long long src_base = block_idx * 256 + y_offset;
         const unsigned long long gate_q01 = static_cast<unsigned long long>(

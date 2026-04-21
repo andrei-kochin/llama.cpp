@@ -25,6 +25,15 @@ extern "C" __global__ void hrx_sigmoid_f32(const float * src, float * dst, long 
     }
 }
 
+extern "C" __global__ void hrx_sigmoid_mul_f32(
+        const float * src0, const float * src1, float * dst, long long n) {
+    const long long idx = static_cast<long long>(__builtin_amdgcn_workgroup_id_x()) * 256 +
+        __builtin_amdgcn_workitem_id_x();
+    if (idx < n) {
+        dst[idx] = hrx_sigmoid_value_f32(src0[idx]) * src1[idx];
+    }
+}
+
 extern "C" __global__ void hrx_softplus_f32(const float * src, float * dst, long long n) {
     const long long idx = static_cast<long long>(__builtin_amdgcn_workgroup_id_x()) * 256 +
         __builtin_amdgcn_workitem_id_x();

@@ -624,6 +624,57 @@ extern "C" __global__ void hrx_mul_mat_vec_bf16_swiglu_rows4_k2048_cols1_lds_wg2
     }
 }
 
+extern "C" __global__ void hrx_mul_mat_vec_bf16_swiglu_rows8_k2048_cols1_lds_wg256_f32(
+        const uint16_t * gate,
+        const uint16_t * up,
+        const float * src1,
+        float * dst,
+        long long k,
+        long long rows,
+        long long cols) {
+    const long long row0 = static_cast<long long>(__builtin_amdgcn_workgroup_id_x()) * 8;
+    const unsigned int tid = __builtin_amdgcn_workitem_id_x();
+    (void) cols;
+    (void) k;
+
+    __shared__ float rhs[2048];
+    for (unsigned int i = tid; i < 2048; i += 256) {
+        rhs[i] = src1[i];
+    }
+    __syncthreads();
+
+    const unsigned int row_lane = tid >> 5;
+    const unsigned int lane = tid & 31;
+    const long long row = row0 + static_cast<long long>(row_lane);
+    float gate_sum = 0.0f;
+    float up_sum = 0.0f;
+    if (row < rows) {
+        const uint16_t * gate_row = gate + row * 2048;
+        const uint16_t * up_row = up + row * 2048;
+#pragma unroll
+        for (int iter = 0; iter < 32; ++iter) {
+            const unsigned int i = lane * 2 + static_cast<unsigned int>(iter) * 64;
+            const float2 b = *reinterpret_cast<const float2 *>(rhs + i);
+            const uint32_t g = *reinterpret_cast<const uint32_t *>(gate_row + i);
+            const uint32_t u = *reinterpret_cast<const uint32_t *>(up_row + i);
+            gate_sum += hrx_bf16_swiglu_to_f32(static_cast<uint16_t>(g & 0xffffu)) * b.x;
+            gate_sum += hrx_bf16_swiglu_to_f32(static_cast<uint16_t>(g >> 16)) * b.y;
+            up_sum += hrx_bf16_swiglu_to_f32(static_cast<uint16_t>(u & 0xffffu)) * b.x;
+            up_sum += hrx_bf16_swiglu_to_f32(static_cast<uint16_t>(u >> 16)) * b.y;
+        }
+    }
+
+    for (int offset = 16; offset > 0; offset >>= 1) {
+        gate_sum += __shfl_down(gate_sum, offset, 32);
+        up_sum += __shfl_down(up_sum, offset, 32);
+    }
+
+    if (lane == 0 && row < rows) {
+        const float silu_gate = gate_sum / (1.0f + __expf(-gate_sum));
+        dst[row] = up_sum * silu_gate;
+    }
+}
+
 extern "C" __global__ void hrx_mul_mat_vec_bf16_swiglu_cols2_f32(
         const uint16_t * gate,
         const uint16_t * up,
