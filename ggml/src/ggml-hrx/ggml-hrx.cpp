@@ -8951,43 +8951,26 @@ static bool ggml_backend_hrx_try_ssm_conv_update_fusion(
         ggml_backend_hrx_ssm_conv_update_fusion * fusion) {
     *fusion = {};
     const ggml_tensor * concat = cgraph->nodes[concat_idx];
-    if (!concat || concat->op != GGML_OP_CONCAT || concat_idx + 2 >= cgraph->n_nodes) {
+    if (!concat || concat->op != GGML_OP_CONCAT || concat_idx + 3 >= cgraph->n_nodes) {
         return false;
     }
 
-    const ggml_tensor * state_view = nullptr;
-    const ggml_tensor * state_update = nullptr;
-    const ggml_tensor * ssm = nullptr;
-    int state_view_idx = -1;
-    int state_update_idx = -1;
-    int ssm_idx = -1;
-
-    for (int i = concat_idx + 1; i < cgraph->n_nodes; ++i) {
-        const ggml_tensor * node = cgraph->nodes[i];
-        if (node->op == GGML_OP_VIEW && node->src[0] == concat && node->view_src == concat) {
-            state_view = node;
-            state_view_idx = i;
-            continue;
-        }
-        if (node->op == GGML_OP_CPY &&
-            node->src[0] &&
-            node->src[0]->op == GGML_OP_VIEW &&
-            node->src[0]->src[0] == concat &&
-            node->src[0]->view_src == concat) {
-            state_view = node->src[0];
-            state_update = node;
-            state_update_idx = i;
-            continue;
-        }
-        if (node->op != GGML_OP_SSM_CONV || node->src[0] != concat || !state_update) {
-            continue;
-        }
-        ssm = node;
-        ssm_idx = i;
-        break;
-    }
-
-    if (!state_view || !state_update || !ssm) {
+    const int state_view_idx = concat_idx + 1;
+    const int state_update_idx = concat_idx + 2;
+    const int ssm_idx = concat_idx + 3;
+    const ggml_tensor * state_view = cgraph->nodes[state_view_idx];
+    const ggml_tensor * state_update = cgraph->nodes[state_update_idx];
+    const ggml_tensor * ssm = cgraph->nodes[ssm_idx];
+    if (!state_view ||
+        state_view->op != GGML_OP_VIEW ||
+        state_view->src[0] != concat ||
+        state_view->view_src != concat ||
+        !state_update ||
+        state_update->op != GGML_OP_CPY ||
+        state_update->src[0] != state_view ||
+        !ssm ||
+        ssm->op != GGML_OP_SSM_CONV ||
+        ssm->src[0] != concat) {
         return false;
     }
 
@@ -9011,17 +8994,12 @@ static bool ggml_backend_hrx_try_ssm_conv_update_fusion(
         return false;
     }
 
-    std::array<int, 5> idxs = { concat_idx, state_update_idx, ssm_idx, out_idx, 0 };
-    std::array<ggml_op, 5> ops = { GGML_OP_CONCAT, GGML_OP_CPY, GGML_OP_SSM_CONV, GGML_OP_UNARY, GGML_OP_NONE };
-    int count = 4;
-    if (state_view_idx >= 0) {
-        idxs = { concat_idx, state_view_idx, state_update_idx, ssm_idx, out_idx };
-        ops = { GGML_OP_CONCAT, GGML_OP_VIEW, GGML_OP_CPY, GGML_OP_SSM_CONV, GGML_OP_UNARY };
-        count = 5;
-    }
+    std::array<int, 5> idxs = { concat_idx, state_view_idx, state_update_idx, ssm_idx, out_idx };
+    std::array<ggml_op, 5> ops = { GGML_OP_CONCAT, GGML_OP_VIEW, GGML_OP_CPY, GGML_OP_SSM_CONV, GGML_OP_UNARY };
+    int count = 5;
     int outputs[2] = { state_update_idx, out_idx };
     if (!apply_silu) {
-        count--;
+        count = 4;
         outputs[1] = ssm_idx;
     }
     if (!ggml_can_fuse_subgraph_ext(cgraph, idxs.data(), count, ops.data(), outputs, 2)) {
